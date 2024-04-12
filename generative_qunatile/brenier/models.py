@@ -385,7 +385,7 @@ class ConditionalConvexQuantile(nn.Module):
     
     def grad(self, u, x=None, onehot=True):
         if onehot and self.xdim > 0:
-            x = self.to_onehot(x)
+            x = self.to_onehot(x,self.xdim)
         elif x != None:
             x, xv = self.f(x)#self.bn1(x)
         u.requires_grad = True 
@@ -413,9 +413,9 @@ class ConditionalConvexQuantile(nn.Module):
     def invert(self, y):
         raise NotImplementedError
     
-    def to_onehot(self, x):
+    def to_onehot(self, x,n_c):
         with torch.no_grad():
-            onehot = torch.zeros((x.shape[0], self.xdim), device=device)
+            onehot = torch.zeros((x.shape[0], n_c), device=device)
             onehot.scatter_(dim=-1, index=x.view(x.shape[0], 1), value=1)
             #onehot -= 1/self.xdim
             #onehot = self.bn1(onehot)
