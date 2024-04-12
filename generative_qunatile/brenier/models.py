@@ -333,36 +333,7 @@ class ConditionalConvexQuantile(nn.Module):
                                     num_layer=self.b_layers,
                                     out_dim=self.xdim)
 
-        '''
 
-        alpha = []
-        alpha.append(nn.Sequential(nn.Linear(args.dims, self.a_hid),
-                                   #nn.BatchNorm1d(self.a_hid),
-                                   nn.CELU(inplace=True)))
-
-        for i in range(2, self.a_layers+1):
-            alpha.append(nn.Sequential(nn.Linear(self.a_hid, self.a_hid),
-                                       #nn.BatchNorm1d(self.a_hid),
-                                       nn.CELU(inplace=True)))
-
-        alpha.append(nn.Sequential(nn.Linear(self.a_hid, 1)))
-        self.alpha = nn.Sequential(*alpha)
-        self.beta = None
-        if self.xdim > 0:
-            beta = []
-            beta.append(nn.Sequential(nn.Linear(args.dims, self.b_hid),
-                                      #nn.BatchNorm1d(self.b_hid),
-                                      nn.CELU(inplace=True)))
-
-            for i in range(2, self.b_layers+1):
-                beta.append(nn.Sequential(nn.Linear(self.b_hid, self.b_hid),
-                                          #nn.BatchNorm1d(self.b_hid),
-                                          nn.CELU(inplace=True)))
-
-            beta.append(nn.Sequential(nn.Linear(self.b_hid, self.xdim)))
-            self.beta = nn.Sequential(*beta)
-            # BiRNN
-        '''
         self.f = BiRNN(input_size=args.dims,
                        hidden_size=512,#args.dims*4,
                        num_layers=1,
@@ -419,7 +390,7 @@ class ConditionalConvexQuantile(nn.Module):
             onehot.scatter_(dim=-1, index=x.view(x.shape[0], 1), value=1)
             #onehot -= 1/self.xdim
             #onehot = self.bn1(onehot)
-        onehot = self.f(onehot)
+        onehot = self.f(onehot.unsqueeze(0))
         return onehot
 
     def weights_init_uniform_rule(self, m):
