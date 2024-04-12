@@ -362,7 +362,7 @@ class ConditionalConvexQuantile(nn.Module):
     
     def grad(self, u, x=None, onehot=True):
         if onehot and self.xdim > 0:
-            x = self.to_onehot(x,self.xdim)
+            x,xv = self.to_onehot(x,self.xdim)
         elif x != None:
             x, xv = self.f(x)#self.bn1(x)
         u.requires_grad = True 
