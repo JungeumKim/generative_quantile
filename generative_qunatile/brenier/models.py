@@ -6,7 +6,7 @@ from ot_modules.icnn import *
 from supp.piecewise_linear import *
 
 from IPython.core.debugger import set_trace
-device = "cpu"# torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#device = "cpu"# torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 attributes = ['5_o_Clock_Shadow', 'Arched_Eyebrows', 'Attractive', 'Bags_Under_Eyes', 'Bald', 'Bangs', 'Big_Lips', 'Big_Nose', 'Black_Hair', 'Blond_Hair', 'Blurry', 'Brown_Hair', 'Bushy_Eyebrows', 'Chubby', 'Double_Chin', 'Eyeglasses', 'Goatee', 'Gray_Hair', 'Heavy_Makeup', 'High_Cheekbones', 'Male', 'Mouth_Slightly_Open', 'Mustache', 'Narrow_Eyes', 'No_Beard', 'Oval_Face', 'Pale_Skin', 'Pointy_Nose', 'Receding_Hairline', 'Rosy_Cheeks', 'Sideburns', 'Smiling', 'Straight_Hair', 'Wavy_Hair', 'Wearing_Earrings', 'Wearing_Hat', 'Wearing_Lipstick', 'Wearing_Necklace', 'Wearing_Necktie', 'Young']
 
 
@@ -60,7 +60,7 @@ def reparameterize(mu, logvar):
     return eps.mul(std).add_(mu)
 
 class BiRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, xdim, bn_last=True):
+    def __init__(self, input_size, hidden_size, num_layers, xdim, bn_last=True, device="cuda"):
         super(BiRNN, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -68,11 +68,13 @@ class BiRNN(nn.Module):
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=False)
         self.fc = nn.Linear(hidden_size, xdim)
         self.norm = nn.BatchNorm1d(xdim, momentum=1.0, affine=False)
-    
+        self.device = device
+        self.to(device)
+
     def forward(self, x):
         # Set initial states
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(device) # 2 for bidirection 
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(device)
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(self.device) # 2 for bidirection
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(self.device)
         # Forward propagate LSTM
         out, _ = self.lstm(x, (h0, c0))  # out: tensor of shape (batch_size, seq_length, hidden_size*2)
         
@@ -83,7 +85,7 @@ class BiRNN(nn.Module):
         return out
 
 class ShallowRegressionLSTM(nn.Module):
-    def __init__(self, num_sensors, hidden_units):
+    def __init__(self, num_sensors, hidden_units, device="cuda"):
         super().__init__()
         self.num_sensors = num_sensors  # this is the number of features
         self.hidden_units = hidden_units
@@ -97,11 +99,12 @@ class ShallowRegressionLSTM(nn.Module):
         )
 
         self.linear = nn.Linear(in_features=self.hidden_units, out_features=num_sensors)
-
+        self.device = device
+        self.to(device)
     def forward(self, x):
         batch_size = x.shape[0]
-        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_units).to(device).requires_grad_()
-        c0 = torch.zeros(self.num_layers, batch_size, self.hidden_units).to(device).requires_grad_()
+        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_units).to(self.device).requires_grad_()
+        c0 = torch.zeros(self.num_layers, batch_size, self.hidden_units).to(self.device).requires_grad_()
 
         _, (hn, _) = self.lstm(x, (h0, c0))
         out = self.linear(hn[0])  # First dim of Hn is num_layers, which is set to 1 above.
@@ -316,7 +319,7 @@ class VAE(nn.Module):
         return self.decode(z), mu, log_var
 
 class ConditionalConvexQuantile(nn.Module):
-    def __init__(self, xdim, ydim, a_hid=512, a_layers=3, b_hid=512, b_layers=1):
+    def __init__(self, xdim, ydim, a_hid=512, a_layers=3, b_hid=512, b_layers=1, device="cuda"):
         super(ConditionalConvexQuantile, self).__init__()
         self.xdim = xdim
         self.a_hid=a_hid
@@ -339,6 +342,8 @@ class ConditionalConvexQuantile(nn.Module):
                        hidden_size=512,
                        num_layers=1,
                        xdim=self.xdim)
+        self.device =device
+        self.to(device)
         #self.f = ShallowRegressionLSTM(1, 128)
         # MLP
 
@@ -387,7 +392,7 @@ class ConditionalConvexQuantile(nn.Module):
     
     def to_onehot(self, x,n_c):
         with torch.no_grad():
-            onehot = torch.zeros((x.shape[0], n_c), device=device)
+            onehot = torch.zeros((x.shape[0], n_c), device=self.device)
             onehot.scatter_(dim=-1, index=x.view(x.shape[0], 1), value=1)
             #onehot -= 1/self.xdim
             #onehot = self.bn1(onehot)
