@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ot_modules.icnn import *
-from supp.distribution_output import *
+#from supp.distribution_output import *
 from supp.piecewise_linear import *
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -106,7 +106,7 @@ class ShallowRegressionLSTM(nn.Module):
         out = self.linear(hn[0])  # First dim of Hn is num_layers, which is set to 1 above.
         print(out.shape)
         return None, out
-
+'''
 class Spline(nn.Module):
     def __init__(self, args):
         super(Spline, self).__init__()
@@ -124,7 +124,7 @@ class Spline(nn.Module):
         if y != None:
             return distr.crps(y)
         return distr.sample()
-
+'''
 class QuantileLayer(nn.Module):
     """Define quantile embedding layer, i.e. phi in the IQN paper (arXiv: 1806.06923)."""
 
