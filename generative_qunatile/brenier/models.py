@@ -5,6 +5,7 @@ from ot_modules.icnn import *
 #from supp.distribution_output import *
 from supp.piecewise_linear import *
 
+from IPython.core.debugger import set_trace
 device = "cpu"# torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 attributes = ['5_o_Clock_Shadow', 'Arched_Eyebrows', 'Attractive', 'Bags_Under_Eyes', 'Bald', 'Bangs', 'Big_Lips', 'Big_Nose', 'Black_Hair', 'Blond_Hair', 'Blurry', 'Brown_Hair', 'Bushy_Eyebrows', 'Chubby', 'Double_Chin', 'Eyeglasses', 'Goatee', 'Gray_Hair', 'Heavy_Makeup', 'High_Cheekbones', 'Male', 'Mouth_Slightly_Open', 'Mustache', 'Narrow_Eyes', 'No_Beard', 'Oval_Face', 'Pale_Skin', 'Pointy_Nose', 'Receding_Hairline', 'Rosy_Cheeks', 'Sideburns', 'Smiling', 'Straight_Hair', 'Wavy_Hair', 'Wearing_Earrings', 'Wearing_Hat', 'Wearing_Lipstick', 'Wearing_Necklace', 'Wearing_Necktie', 'Young']
 
@@ -315,7 +316,7 @@ class VAE(nn.Module):
         return self.decode(z), mu, log_var
 
 class ConditionalConvexQuantile(nn.Module):
-    def __init__(self, xdim, args, a_hid=512, a_layers=3, b_hid=512, b_layers=1):
+    def __init__(self, xdim, ydim, a_hid=512, a_layers=3, b_hid=512, b_layers=1):
         super(ConditionalConvexQuantile, self).__init__()
         self.xdim = xdim
         self.a_hid=a_hid
@@ -323,19 +324,19 @@ class ConditionalConvexQuantile(nn.Module):
         self.b_hid=b_hid
         self.b_layers=b_layers
 
-        self.alpha = ICNN_LastInp_Quadratic(input_dim=args.dims,
+        self.alpha = ICNN_LastInp_Quadratic(input_dim=ydim,
                                     hidden_dim=self.a_hid,#1024,#512
                                     activation='celu',
                                     num_layer=self.a_layers)
-        self.beta = ICNN_LastInp_Quadratic(input_dim=args.dims,
+        self.beta = ICNN_LastInp_Quadratic(input_dim=ydim,
                                     hidden_dim=self.b_hid,
                                     activation='celu',
                                     num_layer=self.b_layers,
                                     out_dim=self.xdim)
 
 
-        self.f = BiRNN(input_size=args.dims,
-                       hidden_size=512,#args.dims*4,
+        self.f = BiRNN(input_size=xdim,
+                       hidden_size=512,
                        num_layers=1,
                        xdim=self.xdim)
         #self.f = ShallowRegressionLSTM(1, 128)
@@ -390,7 +391,9 @@ class ConditionalConvexQuantile(nn.Module):
             onehot.scatter_(dim=-1, index=x.view(x.shape[0], 1), value=1)
             #onehot -= 1/self.xdim
             #onehot = self.bn1(onehot)
-        onehot = self.f(onehot.unsqueeze(0))
+
+        #set_trace()
+        onehot = self.f(onehot.unsqueeze(1))
         return onehot
 
     def weights_init_uniform_rule(self, m):
