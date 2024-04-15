@@ -10,18 +10,52 @@ from IPython.core.debugger import set_trace
 attributes = ['5_o_Clock_Shadow', 'Arched_Eyebrows', 'Attractive', 'Bags_Under_Eyes', 'Bald', 'Bangs', 'Big_Lips', 'Big_Nose', 'Black_Hair', 'Blond_Hair', 'Blurry', 'Brown_Hair', 'Bushy_Eyebrows', 'Chubby', 'Double_Chin', 'Eyeglasses', 'Goatee', 'Gray_Hair', 'Heavy_Makeup', 'High_Cheekbones', 'Male', 'Mouth_Slightly_Open', 'Mustache', 'Narrow_Eyes', 'No_Beard', 'Oval_Face', 'Pale_Skin', 'Pointy_Nose', 'Receding_Hairline', 'Rosy_Cheeks', 'Sideburns', 'Smiling', 'Straight_Hair', 'Wavy_Hair', 'Wearing_Earrings', 'Wearing_Hat', 'Wearing_Lipstick', 'Wearing_Necklace', 'Wearing_Necktie', 'Young']
 
 
-def dual(U, Y_hat, Y, X, eps=0):
-    set_trace()
+def dual_JK(U, Y_hat, Y, X, eps=0):
     alpha, beta = Y_hat # alpha(U) + beta(U)^{T}X
-    Y = Y.permute(1, 0)
-    X = X.permute(1, 0) 
-    # beta: 
-    BX = torch.mm(beta, X) 
-    loss = torch.mean(alpha) #+ BX)
-    UY = torch.mm(U, Y)
+    # alpha: n x 1, beta: n x d, X: n x d,
+
+
+    loss = (alpha.view(-1,1) + (beta * X).sum(1).view(-1,1)) # n x 1
+
+    Y = Y.permute(1, 0) #d x n
+    X = X.permute(1, 0) # d x n
+    # beta: n x d, X: d x n,
+    BX = torch.mm(beta, X) # n x n
+
+    # U: n x d  , Y: d x n
+    UY = torch.mm(U, Y) # n x n
     # (U, Y), (U, X), beta.shape(bs, nclass), X.shape(bs, nclass)
     #print(BX.shape, UY.shape, alpha.shape)
-    psi = UY - alpha - BX
+    psi = UY - alpha - BX # n x n - n x 1 - n x n
+
+    sup, _ = torch.max(psi, dim=0) # n
+
+    #print(sup.shape)
+    #print(UY.min(), UY.max(), sup.mean())
+    loss += sup.view(-1,1) # n x 1
+    loss = loss.mean() # 1
+
+    if eps == 0:
+        return loss
+
+    l = torch.exp((psi-sup)/eps)
+    loss += eps*torch.mean(l)
+    return loss
+
+
+
+def dual(U, Y_hat, Y, X, eps=0):
+    alpha, beta = Y_hat # alpha(U) + beta(U)^{T}X
+    Y = Y.permute(1, 0) #d x n
+    X = X.permute(1, 0) # d x n
+    # beta: n x d, x: d x n,
+    BX = torch.mm(beta, X) # n x n
+    loss = torch.mean(alpha)
+    # U: n x d  , Y: d x n
+    UY = torch.mm(U, Y) # n x n
+    # (U, Y), (U, X), beta.shape(bs, nclass), X.shape(bs, nclass)
+    #print(BX.shape, UY.shape, alpha.shape)
+    psi = UY - alpha - BX # n x n - n x 1 - n x n
     sup, _ = torch.max(psi, dim=0)
     #print(sup.shape)
     #print(UY.min(), UY.max(), sup.mean())
