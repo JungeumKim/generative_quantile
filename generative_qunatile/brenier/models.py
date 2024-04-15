@@ -11,10 +11,12 @@ attributes = ['5_o_Clock_Shadow', 'Arched_Eyebrows', 'Attractive', 'Bags_Under_E
 
 
 def dual(U, Y_hat, Y, X, eps=0):
+    set_trace()
     alpha, beta = Y_hat # alpha(U) + beta(U)^{T}X
     Y = Y.permute(1, 0)
-    X = X.permute(1, 0)
-    BX = torch.mm(beta, X)
+    X = X.permute(1, 0) 
+    # beta: 
+    BX = torch.mm(beta, X) 
     loss = torch.mean(alpha) #+ BX)
     UY = torch.mm(U, Y)
     # (U, Y), (U, X), beta.shape(bs, nclass), X.shape(bs, nclass)
@@ -77,7 +79,7 @@ class BiRNN(nn.Module):
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(self.device)
         # Forward propagate LSTM
         out, _ = self.lstm(x, (h0, c0))  # out: tensor of shape (batch_size, seq_length, hidden_size*2)
-        
+        #set_trace()
         # Decode the hidden state of the last time step
         out = self.fc(out[:, -1, :])
         if self.bn_last:
@@ -319,13 +321,14 @@ class VAE(nn.Module):
         return self.decode(z), mu, log_var
 
 class ConditionalConvexQuantile(nn.Module):
-    def __init__(self, xdim, ydim, a_hid=512, a_layers=3, b_hid=512, b_layers=1, device="cuda"):
+    def __init__(self, xdim, ydim, a_hid=512, a_layers=3, b_hid=512, b_layers=1, device="cuda",use_f=True):
         super(ConditionalConvexQuantile, self).__init__()
         self.xdim = xdim
         self.a_hid=a_hid
         self.a_layers=a_layers
         self.b_hid=b_hid
         self.b_layers=b_layers
+        self.use_f=use_f
 
         self.alpha = ICNN_LastInp_Quadratic(input_dim=ydim,
                                     hidden_dim=self.a_hid,#1024,#512
@@ -361,13 +364,17 @@ class ConditionalConvexQuantile(nn.Module):
         return alpha, beta #, self.fc_x(x)
     
     def grad(self, u, x=None, onehot=True):
-        if onehot and self.xdim > 0:
-            x,xv = self.to_onehot(x,self.xdim)
-        elif x != None:
-            x, xv = self.f(x)#self.bn1(x)
+        if self.use_f:
+            if onehot and self.xdim > 0:
+                x,xv = self.to_onehot(x,self.xdim)
+            elif x != None:
+                x, xv = self.f(x)#self.bn1(x)
+        else:
+            x,xv=x,x
         u.requires_grad = True 
         phi = self.alpha(u).sum()
         if self.xdim != 0 and x != None:
+            set_trace()
             phi += (torch.bmm(self.beta(u).unsqueeze(1), x.unsqueeze(-1)).squeeze(-1)).sum()
         d_phi = torch.autograd.grad(phi, u, create_graph=True)[0]
         return d_phi, xv

@@ -3,7 +3,7 @@ import seaborn as sns
 
 
 
-def plot2d(Y, name=None, labels=None, show=False, ax=None, close=False):
+def plot2d(Y, name=None, labels=None, show=False, ax=None, close=False,s=5):
     #Y = Y.detach().cpu().numpy()
     #labels = labels.detach().cpu().numpy().flatten()
     #fig = plt.figure(figsize=(5, 5))
@@ -12,7 +12,7 @@ def plot2d(Y, name=None, labels=None, show=False, ax=None, close=False):
     
     #ax = fig.add_subplot(1, 1, 1)
     #sns.kdeplot(Y[:, 0], Y[:, 1], cmap='Blues', shade=True, thresh=0)
-    sns.scatterplot(x=Y[:,0], y=Y[:,1], hue=labels, s=5, ax=ax)
+    sns.scatterplot(x=Y[:,0], y=Y[:,1], hue=labels, s=s, ax=ax)
     '''
     H, _, _ = np.histogram2d(Y[:, 0], Y[:, 1], 200, range=[[-4, 4], [-4, 4]])
     plt.imshow(H.T, cmap='BuPu')
