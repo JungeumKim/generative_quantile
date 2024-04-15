@@ -10,12 +10,17 @@ from IPython.core.debugger import set_trace
 attributes = ['5_o_Clock_Shadow', 'Arched_Eyebrows', 'Attractive', 'Bags_Under_Eyes', 'Bald', 'Bangs', 'Big_Lips', 'Big_Nose', 'Black_Hair', 'Blond_Hair', 'Blurry', 'Brown_Hair', 'Bushy_Eyebrows', 'Chubby', 'Double_Chin', 'Eyeglasses', 'Goatee', 'Gray_Hair', 'Heavy_Makeup', 'High_Cheekbones', 'Male', 'Mouth_Slightly_Open', 'Mustache', 'Narrow_Eyes', 'No_Beard', 'Oval_Face', 'Pale_Skin', 'Pointy_Nose', 'Receding_Hairline', 'Rosy_Cheeks', 'Sideburns', 'Smiling', 'Straight_Hair', 'Wavy_Hair', 'Wearing_Earrings', 'Wearing_Hat', 'Wearing_Lipstick', 'Wearing_Necklace', 'Wearing_Necktie', 'Young']
 
 
-def dual_JK(U, Y_hat, Y, X, eps=0):
+def dual_JK(U, Y_hat, Y, X, eps=0,efficient=False):
     alpha, beta = Y_hat # alpha(U) + beta(U)^{T}X
     # alpha: n x 1, beta: n x d, X: n x d,
 
-
-    loss = (alpha.view(-1,1) + (beta * X).sum(1).view(-1,1)) # n x 1
+    if efficient: 
+        loss = (alpha.view(-1,1) + (beta.unsqueeze(2) * X.permute(1, 0).unsqueeze(0)).mean(-1).sum(1).view(-1,1)) # n x 1
+        #beta.unsqueeze(2): n x d x 1
+        #X.permute(1, 0).unsqueeze(0): 1 x d x n
+        # their multiplication: n x d x n : mean: nxd
+    else:
+        loss = (alpha.view(-1,1) + (beta * X).sum(1).view(-1,1)) # n x 1
 
     Y = Y.permute(1, 0) #d x n
     X = X.permute(1, 0) # d x n
@@ -404,12 +409,14 @@ class ConditionalConvexQuantile(nn.Module):
             elif x != None:
                 x, xv = self.f(x)#self.bn1(x)
         else:
-            x,xv=x,x
+            x,xv=x.squeeze(1),x.squeeze(1)
         u.requires_grad = True 
-        phi = self.alpha(u).sum()
+        phi = self.alpha(u).view(-1)
         if self.xdim != 0 and x != None:
-            set_trace()
-            phi += (torch.bmm(self.beta(u).unsqueeze(1), x.unsqueeze(-1)).squeeze(-1)).sum()
+            #set_trace()
+            #phi += (torch.bmm(self.beta(u).unsqueeze(1), x.unsqueeze(-1)).squeeze(-1)).sum()
+            phi += (self.beta(u) * x).sum(1).view(-1)
+        phi = phi.sum()
         d_phi = torch.autograd.grad(phi, u, create_graph=True)[0]
         return d_phi, xv
 
@@ -439,8 +446,10 @@ class ConditionalConvexQuantile(nn.Module):
             #onehot = self.bn1(onehot)
 
         #set_trace()
-        onehot = self.f(onehot.unsqueeze(1))
-        return onehot
+        if self.use_f:
+            return onehot
+        else:
+            return self.f(onehot.unsqueeze(1))
 
     def weights_init_uniform_rule(self, m):
         classname = m.__class__.__name__
