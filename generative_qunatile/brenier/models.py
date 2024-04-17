@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ot_modules.icnn import *
+from brenier.ot_modules.icnn import *
 #from supp.distribution_output import *
-from supp.piecewise_linear import *
+from brenier.supp.piecewise_linear import *
 
 from IPython.core.debugger import set_trace
 #device = "cpu"# torch.device('cuda' if torch.cuda.is_available() else 'cpu')

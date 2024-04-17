@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from IPython.core.debugger import set_trace
-from scipy.stats import norm, t
 
 def tensor_forward_sampler(n = 2, theta_batch_size=100,x_batch_size= 100,
                            device="cuda",seed = 12345,
