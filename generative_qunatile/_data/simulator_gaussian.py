@@ -48,7 +48,8 @@ class Conjugate_Model:
     def prior_density(self, thetas):
 
         h_param = self.h_param 
-        
+        #set_trace() 
+        #print(thetas.reshape(1,-1))
         p_gauss = norm.pdf(thetas[:,0], loc=h_param["mu0"], scale=np.sqrt(thetas[:,1]))
         p_inverse_gamma = invgamma.pdf(thetas[:,1], a=h_param["nu"]/2, 
                                        scale=h_param["sigma0_sq"]*h_param["nu"]/2)

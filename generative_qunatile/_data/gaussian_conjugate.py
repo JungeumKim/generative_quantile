@@ -44,6 +44,24 @@ def forward_sampler(n = 2, batch_size=100,device="cuda",seed = 12345,
         parameters = torch.from_numpy(parameters).float().to(device)
     return parameters, x
 
+def gauss_gen(parameters, as_torch=False,np_random = None,
+              n = 2, batch_size=100,device="cuda",seed = 12345):
+    
+    if np_random is None:
+        np_random = np.random.RandomState(seed)
+        
+    theta = parameters[:,0]
+    sigma_sq = parameters[:,1]
+    x =  np_random.normal(theta.reshape(batch_size,1),
+                          sigma_sq.reshape(batch_size,1)**(0.5),
+                          size=(batch_size,n))
+    if as_torch:
+        x = torch.from_numpy(x.reshape(-1,n)).float().to(device)
+        parameters = torch.from_numpy(parameters).float().to(device)
+    return x
+
+
+
 def posterior_sampler(X = 2, batch_size=100,device="cuda",seed = 12345,
                      h_param={"nu":25, "sigma0_sq":1, "mu0":0,"kappa":1},
                      as_torch = False,
