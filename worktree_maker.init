@@ -1,0 +1,11 @@
+#!/bin/bash
+
+
+commit_ish=91e415e #92660f4 #72e093c 
+#cd /home/kim2712/Desktop/research/encodingGAN/sourceCode
+#git version specifier: call and copy the code that it will run with.
+parent=/home/kim2712/Desktop/research/generative_quantile/generative_quantile/worktrees #/home/kim2712/Desktop/research/iglo/exp_controllers/worktrees
+path=$parent/quant_$commit_ish
+git worktree add --detach $path $commit_ish
+
+#rm -r $parent/enc_$pre_commit_ish
