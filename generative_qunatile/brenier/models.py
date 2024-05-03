@@ -14,13 +14,15 @@ def dual_JK(U, Y_hat, Y, X, eps=0,efficient=False):
     alpha, beta = Y_hat # alpha(U) + beta(U)^{T}X
     # alpha: n x 1, beta: n x d, X: n x d,
 
-    if efficient: 
-        loss = (alpha.view(-1,1) + (beta.unsqueeze(2) * X.permute(1, 0).unsqueeze(0)).mean(-1).sum(1).view(-1,1)) # n x 1
-        #beta.unsqueeze(2): n x d x 1
-        #X.permute(1, 0).unsqueeze(0): 1 x d x n
-        # their multiplication: n x d x n : mean: nxd
-    else:
-        loss = (alpha.view(-1,1) + (beta * X).sum(1).view(-1,1)) # n x 1
+    #if efficient:
+    #    loss = (alpha.view(-1,1) + (beta.unsqueeze(2) * X.permute(1, 0).unsqueeze(0)).mean(-1).sum(1).view(-1,1)) # n x 1
+    #    #beta.unsqueeze(2): n x d x 1
+    #    #X.permute(1, 0).unsqueeze(0): 1 x d x n
+    #    # their multiplication: n x d x n : mean: nxd
+    #else:
+    #    loss = (alpha.view(-1,1) + (beta * X).sum(1).view(-1,1)) # n x 1
+
+
 
     Y = Y.permute(1, 0) #d x n
     X = X.permute(1, 0) # d x n
@@ -37,8 +39,10 @@ def dual_JK(U, Y_hat, Y, X, eps=0,efficient=False):
 
     #print(sup.shape)
     #print(UY.min(), UY.max(), sup.mean())
-    loss += sup.view(-1,1) # n x 1
-    loss = loss.mean() # 1
+    #Corrected loss: 2024/May/2
+    loss = torch.mean(alpha)
+    loss += sup.mean()
+
 
     if eps == 0:
         return loss
