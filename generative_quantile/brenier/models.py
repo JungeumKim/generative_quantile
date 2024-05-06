@@ -423,7 +423,7 @@ class ConditionalConvexQuantile(nn.Module):
         phi = phi.sum()
         d_phi = torch.autograd.grad(phi, u, create_graph=True)[0]
         return d_phi, xv
-
+    '''
     def grad_multi(self, u, x):
         if x == None:
             x = generate_x()
@@ -438,7 +438,8 @@ class ConditionalConvexQuantile(nn.Module):
         phi = self.alpha(u).sum() + (torch.bmm(self.beta(u).unsqueeze(1), x.unsqueeze(-1)).squeeze(-1)).sum()
         d_phi = torch.autograd.grad(phi, u, create_graph=True)[0]
         return d_phi
-
+    '''
+    
     def invert(self, y):
         raise NotImplementedError
     
