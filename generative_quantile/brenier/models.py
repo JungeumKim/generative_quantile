@@ -78,32 +78,6 @@ def dual(U, Y_hat, Y, X, eps=0):
     loss += eps*torch.mean(l)
     return loss
 
-def dual_unconditioned(U, Y_hat, Y, eps=0):
-    loss = torch.mean(Y_hat)
-    Y = Y.permute(1, 0)
-    psi = torch.mm(U, Y) - Y_hat
-    sup, _ = torch.max(psi, dim=0)
-    loss += torch.mean(sup)
-
-    if eps == 0:
-        return loss
-
-    l = torch.exp((psi-sup)/eps)
-    loss += eps*torch.mean(l)
-    return loss
-
-def generate_x():
-    x = torch.zeros(40)
-    with open('./description.txt') as f:
-        for line in f:
-            i = attributes.index(line[:-1])
-            x[i] = 1
-    return x
-
-def reparameterize(mu, logvar):
-    std = torch.exp(0.5 * logvar)
-    eps = torch.randn_like(std)
-    return eps.mul(std).add_(mu)
 
 class BiRNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, xdim, bn_last=True, device="cuda"):
@@ -166,11 +140,12 @@ class DeepSets(nn.Module):
 
 
 class ConditionalConvexQuantile(nn.Module):
-    def __init__(self, xdim, ydim, fdim, a_hid=512, a_layers=3, b_hid=512,
+    def __init__(self, xdim, ydim, fdim=0, f2dim=0, a_hid=512, a_layers=3, b_hid=512,
                  b_layers=1, device="cuda",use_f=True,deepf = False, n_layers=2, factor=16):
         super(ConditionalConvexQuantile, self).__init__()
         self.xdim = xdim
         self.fdim = fdim
+        self.f2dim=f2dim
         self.a_hid=a_hid
         self.a_layers=a_layers
         self.b_hid=b_hid
@@ -185,17 +160,19 @@ class ConditionalConvexQuantile(nn.Module):
                                     hidden_dim=self.b_hid,
                                     activation='celu',
                                     num_layer=self.b_layers,
-                                    out_dim=self.fdim)
+                                    out_dim=self.fdim+self.f1dim)
 
-        if deepf:
-            self.f = DeepSets(dim_x=xdim,
-                              dim_ss=fdim, 
+        if  self.fdim>0:
+            self.f1 = DeepSets(dim_x=xdim,
+                              dim_ss=self.fdim,
                               factor=factor, num_layers=n_layers, device=device)
-        else:
-            self.f = BiRNN(input_size=xdim,
+
+        if  self.f2dim>0:
+             self.f2 = BiRNN(input_size=xdim,
                        hidden_size=512,
                        num_layers=1,
-                       xdim=self.fdim)
+                       xdim=self.f2dim)
+
         self.device =device
         self.to(device)
         #self.f = ShallowRegressionLSTM(1, 128)
@@ -204,6 +181,16 @@ class ConditionalConvexQuantile(nn.Module):
         #self.bn1 = nn.BatchNorm1d(self.xdim, momentum=1.0, affine=False)
 
         #self.f = nn.BatchNorm1d(self.xdim, affine=False)
+    def f(self, x):
+        if self.fdim>0 and  self.f2dim ==0:
+            return self.f1(x)
+        elif self.fdim==0 and  self.f2dim >0:
+            return self.f2(x)
+        else:
+            x1,xv1 = self.f1(x)
+            x2,xv2 = self.f2(x)
+            x, xv = torch.cat([x1,x2], 1), torch.cat([xv1,xv2], 1)
+            return x,xv
 
     def forward(self, z, x=None):
         # we want onehot for categorical and non-ordinal x.
@@ -231,22 +218,7 @@ class ConditionalConvexQuantile(nn.Module):
         phi = phi.sum()
         d_phi = torch.autograd.grad(phi, u, create_graph=True)[0]
         return d_phi, xv
-    '''
-    def grad_multi(self, u, x):
-        if x == None:
-            x = generate_x()
-        x_s = x.shape[-1]
-        for i in range(40):
-            if x[i] == 1:
-                print(attributes[i], end=',')
-        x = x.expand(1, x_s)
-        x = x.repeat(u.shape[0], 1).float().cuda()
-        x = self.f(x)
-        u.requires_grad = True
-        phi = self.alpha(u).sum() + (torch.bmm(self.beta(u).unsqueeze(1), x.unsqueeze(-1)).squeeze(-1)).sum()
-        d_phi = torch.autograd.grad(phi, u, create_graph=True)[0]
-        return d_phi
-    '''
+
     
     def invert(self, y):
         raise NotImplementedError
