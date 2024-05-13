@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from brenier.ot_modules.icnn import *
 #from supp.distribution_output import *
 from brenier.supp.piecewise_linear import *
+from generative_quantile._nets.basic_nets import  MLP
 
 from IPython.core.debugger import set_trace
 #device = "cpu"# torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -363,8 +364,40 @@ class VAE(nn.Module):
         z = self.reparameterize(mu, log_var)
         return self.decode(z), mu, log_var
 
+class DeepSets(nn.Module):
+    def __init__(self, input_size, factor=16, num_layers=2, device="cuda", bn_last=True):
+        super(DeepSets, self).__init__()
+
+        self.common_feature_net = MLP(device=device,
+                                      dim=input_size,
+                                      z_dim = input_size,
+                                      factor=factor,
+                                      n_layers=num_layers)
+
+        self.next_net = MLP(device=device,
+                            dim=input_size,
+                            z_dim = input_size,
+                            factor=factor,
+                            n_layers=num_layers)
+
+        self.to(device)
+        self.device = device
+        self.bn_last = bn_last
+
+    def forward(self, x):
+        if len(x.shape)==2:
+            x = x.unsqueeze(1)
+        shape = x.shape
+        phi = self.common_feature_net(x.view(-1,shape[-1])).view(shape).sum(1)
+        out = self.next_net(phi)
+        if self.bn_last:
+            return self.norm(out), out
+        return out
+
+
 class ConditionalConvexQuantile(nn.Module):
-    def __init__(self, xdim, ydim, a_hid=512, a_layers=3, b_hid=512, b_layers=1, device="cuda",use_f=True):
+    def __init__(self, xdim, ydim, a_hid=512, a_layers=3, b_hid=512,
+                 b_layers=1, device="cuda",use_f=True,deepf = False, n_layers=2, factor=16):
         super(ConditionalConvexQuantile, self).__init__()
         self.xdim = xdim
         self.a_hid=a_hid
@@ -383,8 +416,10 @@ class ConditionalConvexQuantile(nn.Module):
                                     num_layer=self.b_layers,
                                     out_dim=self.xdim)
 
-
-        self.f = BiRNN(input_size=xdim,
+        if deepf:
+            self.f = DeepSets(input_size=xdim, factor=factor, num_layers=n_layers, device=device)
+        else:
+            self.f = BiRNN(input_size=xdim,
                        hidden_size=512,
                        num_layers=1,
                        xdim=self.xdim)
