@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from brenier.ot_modules.icnn import *
 #from supp.distribution_output import *
 from brenier.supp.piecewise_linear import *
-from generative_quantile._nets.basic_nets import  MLP
+from _nets.basic_nets import  MLP
 
 from IPython.core.debugger import set_trace
 #device = "cpu"# torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -130,265 +130,35 @@ class BiRNN(nn.Module):
             return self.norm(out), out
         return out
 
-class ShallowRegressionLSTM(nn.Module):
-    def __init__(self, num_sensors, hidden_units, device="cuda"):
-        super().__init__()
-        self.num_sensors = num_sensors  # this is the number of features
-        self.hidden_units = hidden_units
-        self.num_layers = 1
-
-        self.lstm = nn.LSTM(
-            input_size=num_sensors,
-            hidden_size=hidden_units,
-            batch_first=True,
-            num_layers=self.num_layers
-        )
-
-        self.linear = nn.Linear(in_features=self.hidden_units, out_features=num_sensors)
-        self.device = device
-        self.to(device)
-    def forward(self, x):
-        batch_size = x.shape[0]
-        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_units).to(self.device).requires_grad_()
-        c0 = torch.zeros(self.num_layers, batch_size, self.hidden_units).to(self.device).requires_grad_()
-
-        _, (hn, _) = self.lstm(x, (h0, c0))
-        out = self.linear(hn[0])  # First dim of Hn is num_layers, which is set to 1 above.
-        print(out.shape)
-        return None, out
-'''
-class Spline(nn.Module):
-    def __init__(self, args):
-        super(Spline, self).__init__()
-        self.f = BiRNN(input_size=1,
-                        hidden_size=4,
-                        num_layers=2,
-                        xdim=50)
-        self.d_out = PiecewiseLinearOutput(num_pieces=50)
-        self.args_proj = self.d_out.get_args_proj(in_features=50)
-
-    def forward(self, x, y=None, u=None):
-        h = self.f(x)
-        gamma, slopes, knot_spacings = self.args_proj(h)
-        distr = PiecewiseLinear(gamma=gamma, slopes=slopes, knot_spacings=knot_spacings)
-        if y != None:
-            return distr.crps(y)
-        return distr.sample()
-'''
-class QuantileLayer(nn.Module):
-    """Define quantile embedding layer, i.e. phi in the IQN paper (arXiv: 1806.06923)."""
-
-    def __init__(self, num_output):
-        super(QuantileLayer, self).__init__()
-        self.n_cos_embedding = 64
-        self.num_output = num_output
-        self.output_layer = nn.Sequential(
-            nn.Linear(self.n_cos_embedding, self.n_cos_embedding),
-            nn.PReLU(),
-            nn.Linear(self.n_cos_embedding, num_output),
-        )
-
-    def forward(self, tau):
-        cos_embedded_tau = self.cos_embed(tau)
-        final_output = self.output_layer(cos_embedded_tau)
-        return final_output
-
-    def cos_embed(self, tau):
-        integers = torch.repeat_interleave(
-            torch.arange(0, self.n_cos_embedding).unsqueeze(dim=0),
-            repeats=tau.shape[-1],
-            dim=0,
-        ).to(tau.device)
-        return torch.cos(math.pi * tau.unsqueeze(dim=-1) * integers)
-
-class IQN(nn.Module):
-    def __init__(self, args):
-        super(IQN, self).__init__()
-        self.f = BiRNN(input_size=args.dims,
-                        hidden_size=args.dims*4,
-                        num_layers=2,
-                        xdim=50)
-        self.phi = QuantileLayer(num_output=50)
-        self.output_layer = nn.Sequential(nn.Linear(50, 50), 
-                        nn.Softplus(),
-                        nn.Linear(50, args.dims))
-	
-    def forward(self, tau, x):
-        h = self.f(x)
-        embedded_tau = self.phi(tau).squeeze(1)
-        new_input_data = h * (torch.ones_like(embedded_tau) + embedded_tau)
-        return self.output_layer(new_input_data)
-
-
-class MLPVAE(nn.Module):
-    def __init__(self, args):
-        super(MLPVAE, self).__init__()
-
-        self.fc1 = nn.Linear(784, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc31 = nn.Linear(256, args.dims)
-        self.fc32 = nn.Linear(256, args.dims)
-        self.fc4 = nn.Linear(args.dims, 256)
-        self.fc5 = nn.Linear(256, 512)
-        self.fc6 = nn.Linear(512, 784)
-
-    def encode(self, x):
-        h = F.relu(self.fc1(x))
-        h = F.relu(self.fc2(h))
-        return self.fc31(h), self.fc32(h)
-
-    def reparameterize(self, mu, logvar):
-        return reparameterize(mu, logvar) if self.training else mu
-
-    def decode(self, z):
-        h = F.relu(self.fc4(z))
-        h = F.relu(self.fc5(h))
-        return torch.sigmoid(self.fc6(h))
-
-    def forward(self, x):
-        mu, logvar = self.encode(x.view(-1, 784))
-        z = self.reparameterize(mu, logvar)
-        return self.decode(z), mu, logvar, z
-
-class VAE(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 latent_dim,
-                 hidden_dims = None,
-                 **kwargs):
-        super(VAE, self).__init__()
-
-        self.latent_dim = latent_dim
-
-        modules = []
-        if hidden_dims is None:
-            hidden_dims = [32, 64, 128, 256]
-
-        self.feat_last = hidden_dims[-1] 
-        # Build Encoder
-        for h_dim in hidden_dims:
-            modules.append(
-                nn.Sequential(
-                    nn.Conv2d(in_channels, out_channels=h_dim,
-                              kernel_size= 3, stride= 2, padding  = 1),
-                    nn.BatchNorm2d(h_dim),
-                    nn.LeakyReLU())
-            )
-            in_channels = h_dim
-
-        self.encoder = nn.Sequential(*modules)
-        self.fc_mu = nn.Linear(hidden_dims[-1]*4, latent_dim)
-        self.fc_var = nn.Linear(hidden_dims[-1]*4, latent_dim)
-
-
-        # Build Decoder
-        modules = []
-
-        self.decoder_input = nn.Linear(latent_dim, hidden_dims[-1] * 4)
-
-        hidden_dims.reverse()
-
-        for i in range(len(hidden_dims) - 1):
-            modules.append(
-                nn.Sequential(
-                    nn.ConvTranspose2d(hidden_dims[i],
-                                       hidden_dims[i + 1],
-                                       kernel_size=3,
-                                       stride = 2,
-                                       padding=1,
-                                       output_padding=1),
-                    nn.BatchNorm2d(hidden_dims[i + 1]),
-                    nn.LeakyReLU())
-            )
-
-
-
-        self.decoder = nn.Sequential(*modules)
-
-        self.final_layer = nn.Sequential(
-                            nn.ConvTranspose2d(hidden_dims[-1],
-                                               hidden_dims[-1],
-                                               kernel_size=3,
-                                               stride=2,
-                                               padding=1,
-                                               output_padding=1),
-                            nn.BatchNorm2d(hidden_dims[-1]),
-                            nn.LeakyReLU(),
-                            nn.Conv2d(hidden_dims[-1], out_channels= 3,
-                                        kernel_size= 3, padding= 1),
-                            nn.Sigmoid())#Tanh())
-
-    def encode(self, input):
-        """
-        Encodes the input by passing through the encoder network
-        and returns the latent codes.
-        :param input: (Tensor) Input tensor to encoder [N x C x H x W]
-        :return: (Tensor) List of latent codes
-        """
-       	result = self.encoder(input)
-        result = torch.flatten(result, start_dim=1)
-        # Split the result into mu and var components
-        # of the latent Gaussian distribution
-        mu = self.fc_mu(result)
-        log_var = self.fc_var(result)
-
-        return [mu, log_var]
-
-    def decode(self, z, train=True):
-        """
-        Maps the given latent codes
-        onto the image space.
-        :param z: (Tensor) [B x D]
-        :return: (Tensor) [B x C x H x W]
-        """
-        result = self.decoder_input(z)
-        result = result.view(-1, self.feat_last, 2, 2)
-        result = self.decoder(result)
-        result = self.final_layer(result)
-        return result
-
-    def reparameterize(self, mu, logvar):
-        """
-        Reparameterization trick to sample from N(mu, var) from
-        N(0,1).
-        :param mu: (Tensor) Mean of the latent Gaussian [B x D]
-        :param logvar: (Tensor) Standard deviation of the latent Gaussian [B x D]
-        :return: (Tensor) [B x D]
-        """
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return eps * std + mu
-
-    def forward(self, input, **kwargs):
-        mu, log_var = self.encode(input)
-        z = self.reparameterize(mu, log_var)
-        return self.decode(z), mu, log_var
 
 class DeepSets(nn.Module):
-    def __init__(self, input_size, factor=16, num_layers=2, device="cuda", bn_last=True):
+    def __init__(self, dim_x, dim_ss, factor=16, num_layers=2, device="cuda", bn_last=True):
         super(DeepSets, self).__init__()
 
         self.common_feature_net = MLP(device=device,
-                                      dim=input_size,
-                                      z_dim = input_size,
+                                      dim=dim_x,
+                                      z_dim = dim_ss,
                                       factor=factor,
                                       n_layers=num_layers)
 
         self.next_net = MLP(device=device,
-                            dim=input_size,
-                            z_dim = input_size,
+                            dim=dim_ss,
+                            z_dim = dim_ss,
                             factor=factor,
                             n_layers=num_layers)
 
         self.to(device)
         self.device = device
         self.bn_last = bn_last
-
+        
+        self.norm = nn.BatchNorm1d(dim_ss, momentum=1.0, affine=False)
     def forward(self, x):
-        if len(x.shape)==2:
-            x = x.unsqueeze(1)
+        #if len(x.shape)==2:
+        #    x = x.unsqueeze(-1)
         shape = x.shape
-        phi = self.common_feature_net(x.view(-1,shape[-1])).view(shape).sum(1)
+        assert len(shape)==3
+        #set_trace()
+        phi = self.common_feature_net(x.view(-1,shape[-1])).view(x.shape[0],x.shape[1],-1).sum(1)
         out = self.next_net(phi)
         if self.bn_last:
             return self.norm(out), out
@@ -396,10 +166,11 @@ class DeepSets(nn.Module):
 
 
 class ConditionalConvexQuantile(nn.Module):
-    def __init__(self, xdim, ydim, a_hid=512, a_layers=3, b_hid=512,
+    def __init__(self, xdim, ydim, fdim, a_hid=512, a_layers=3, b_hid=512,
                  b_layers=1, device="cuda",use_f=True,deepf = False, n_layers=2, factor=16):
         super(ConditionalConvexQuantile, self).__init__()
         self.xdim = xdim
+        self.fdim = fdim
         self.a_hid=a_hid
         self.a_layers=a_layers
         self.b_hid=b_hid
@@ -414,15 +185,17 @@ class ConditionalConvexQuantile(nn.Module):
                                     hidden_dim=self.b_hid,
                                     activation='celu',
                                     num_layer=self.b_layers,
-                                    out_dim=self.xdim)
+                                    out_dim=self.fdim)
 
         if deepf:
-            self.f = DeepSets(input_size=xdim, factor=factor, num_layers=n_layers, device=device)
+            self.f = DeepSets(dim_x=xdim,
+                              dim_ss=fdim, 
+                              factor=factor, num_layers=n_layers, device=device)
         else:
             self.f = BiRNN(input_size=xdim,
                        hidden_size=512,
                        num_layers=1,
-                       xdim=self.xdim)
+                       xdim=self.fdim)
         self.device =device
         self.to(device)
         #self.f = ShallowRegressionLSTM(1, 128)
