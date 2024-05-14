@@ -160,7 +160,7 @@ class ConditionalConvexQuantile(nn.Module):
                                     hidden_dim=self.b_hid,
                                     activation='celu',
                                     num_layer=self.b_layers,
-                                    out_dim=self.fdim+self.f1dim)
+                                    out_dim=self.fdim+self.f2dim)
 
         if  self.fdim>0:
             self.f1 = DeepSets(dim_x=xdim,
