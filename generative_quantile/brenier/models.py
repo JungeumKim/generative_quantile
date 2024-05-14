@@ -199,7 +199,10 @@ class ConditionalConvexQuantile(nn.Module):
         alpha = self.alpha(z)
         beta = self.beta(z) #torch.bmm(self.beta(z).unsqueeze(1), self.fc_x(x).unsqueeze(-1))
         #quad = (z.view(z.size(0), -1) ** 2).sum(1, keepdim=True) / 2
-        return alpha, beta #, self.fc_x(x)
+        if x is None:
+            return alpha, beta #, self.fc_x(x)
+        else:
+            return alpha, beta, self.f(x)
     
     def grad(self, u, x=None, onehot=True):
         if self.use_f:
