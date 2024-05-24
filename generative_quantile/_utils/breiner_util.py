@@ -2,12 +2,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
-def uniform_on_unit_ball(size, d, np_random=None, seed=1234):
+def uniform_on_unit_ball(size, d, np_random=None, seed=1234,surface=False):
     if np_random is None:
         np_random = np.random.RandomState(seed)
         
-    # Generate random radii uniformly between 0 and 1
-    r = np.random.rand(size, 1) 
+    
+    if surface:
+        r=1
+    else:
+        # Generate random radii uniformly between 0 and 1
+        # This is the standard case.
+        r = np.random.rand(size, 1) 
     # Generate random points on the unit sphere S^{d-1}
     phi = np.random.randn(size, d)
     phi = phi / np.linalg.norm(phi, axis=1, keepdims=True)
