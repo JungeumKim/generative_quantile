@@ -5,6 +5,8 @@ TODO) the data should be normalized if want to mimic the original code by Wuexi 
 TODO) clean up device
 """
 
+from IPython.core.debugger import set_trace
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -42,16 +44,18 @@ class Generator(nn.Module):
 
 class Critic(nn.Module):
 
-    def __init__(self,activation = "relu",dropout = 0,input_dim=2, d_hidden = [128,128,128]):
+    def __init__(self,activation = "relu",dropout = 0,input_dim=2, d_cond = 4,d_hidden = [128,128,128]):
 
         super().__init__()
-        d_in = [input_dim] + d_hidden
+        d_in = [input_dim+d_cond] + d_hidden
         d_out = d_hidden + [1]
         self.layers = nn.ModuleList([nn.Linear(i, o) for i, o in zip(d_in, d_out)])
         self.dropout = nn.Dropout(dropout)
         self.activation = F.relu if activation == "relu" else F.leaky_relu
 
     def forward(self, x, context):
+
+        #set_trace()
         x = torch.cat([x, context], -1)
         for layer in self.layers[:-1]:
             x = self.dropout(self.activation(layer(x)))
@@ -79,6 +83,8 @@ def train(generator, critic, simulator, Epochs=1000,
 
     # setup training objects
     start_time = time()
+    local_start_time = time()
+
     step = 1
 
     generator.to(device), critic.to(device)
@@ -131,8 +137,8 @@ def train(generator, critic, simulator, Epochs=1000,
         WD_test /= test_iter
         # diagnostics
         if epoch % print_every == 0:
-            description = "epoch {} | step {} | WD_test {} | WD_train {} | sec passed {} |".format(
-            epoch, step, round(WD_test, 2), round(WD_train, 2), round(time() - start_time))
+            description = "epoch {} | step {} | WD_test {} | WD_train {} | sec passed {} (total {}) |".format(
+            epoch, step, round(WD_test, 2), round(WD_train, 2),round(time() - local_start_time),round(time() - start_time) )
             print(description)
-            t = time()
+            local_start_time = time()
 
