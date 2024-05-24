@@ -70,9 +70,12 @@ class Critic(nn.Module):
         return penalty
 
 
-def train(generator, critic, h_params, n_sample, batch_size, simulator, Epochs=1000,
-          critic_gp_factor = 5,critic_lr = 1e-4,critic_steps = 15,generator_lr = 1e-4,
-          print_every=200, device="cuda", n_iter=1000, test_iter=10):
+def train(generator, critic, simulator, Epochs=1000,
+          critic_gp_factor = 5,critic_lr = 1e-3,
+          critic_steps = 15,
+          generator_lr = 1e-3,
+          print_every=20, device="cuda",
+          n_iter=1000, test_iter=10):
 
     # setup training objects
     start_time = time()
@@ -89,7 +92,7 @@ def train(generator, critic, h_params, n_sample, batch_size, simulator, Epochs=1
         critic_update = True
 
         for iter in range(n_iter):
-            x, context = simulator(h_params, n_sample,batch_size)
+            x, context = simulator()
             x, context = x.to(device), context.to(device)
             generator.zero_grad()
             critic.zero_grad()
@@ -118,7 +121,7 @@ def train(generator, critic, h_params, n_sample, batch_size, simulator, Epochs=1
         # test loop
 
         for iter_t in range(test_iter):
-            x, context = simulator(h_params, n_sample,batch_size)
+            x, context = simulator()
             x, context = x.to(device), context.to(device)
             with torch.no_grad():
                 x_hat = generator(context)
