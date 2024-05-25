@@ -8,7 +8,6 @@ from IPython.core.debugger import set_trace
 def dual_JK(U, Y_hat, Y, X):
     alpha, beta = Y_hat # alpha(U) + beta(U)^{T}X
     # alpha: n x 1, beta: n x d, X: n x d,
-
     Y = Y.permute(1, 0) #d x n
     X = X.permute(1, 0) # d x n
     # beta: n x d, X: d x n,
@@ -24,7 +23,6 @@ def dual_JK(U, Y_hat, Y, X):
     loss += sup.mean()
 
     return loss
-
 
 class BiRNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, xdim, bn_last=True, device="cuda"):
@@ -47,7 +45,6 @@ class BiRNN(nn.Module):
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(self.device)
         # Forward propagate LSTM
         out, _ = self.lstm(x, (h0, c0))  # out: tensor of shape (batch_size, seq_length, hidden_size*2)
-        #set_trace()
         # Decode the hidden state of the last time step
         out = self.fc(out[:, -1, :])
         if self.bn_last:
@@ -73,14 +70,11 @@ class DeepSets(nn.Module):
         self.to(device)
         self.device = device
         self.bn_last = bn_last
-        
         self.norm = nn.BatchNorm1d(dim_ss, momentum=1.0, affine=False)
+
     def forward(self, x):
-        #if len(x.shape)==2:
-        #    x = x.unsqueeze(-1)
         shape = x.shape
         assert len(shape)==3
-        #set_trace()
         phi = self.common_feature_net(x.view(-1,shape[-1])).view(x.shape[0],x.shape[1],-1).sum(1)
         out = self.next_net(phi)
         if self.bn_last:
@@ -88,7 +82,7 @@ class DeepSets(nn.Module):
         return out
 
 class ConditionalConvexQuantile(nn.Module):
-    def __init__(self, xdim, udim,
+    def __init__(self, xdim, udim, f_manual = None,
                  f1dim=0, f2dim=0, factor=16, f1_layers=2,
                  a_hid=512, a_layers=3, b_hid=512,b_layers=1,
                  device="cuda"):
@@ -106,29 +100,23 @@ class ConditionalConvexQuantile(nn.Module):
                                     activation='celu',
                                     num_layer=b_layers,
                                     out_dim=self.f1dim+self.f2dim)
-
-        if  self.f1dim>0:
-            self.f1 = DeepSets(dim_x=xdim,
+        if f_manual is None:
+            if  self.f1dim>0:
+                self.f1 = DeepSets(dim_x=xdim,
                               dim_ss=self.f1dim,
                               factor=factor, num_layers=f1_layers, device=device)
 
-        if  self.f2dim>0:
-             self.f2 = BiRNN(input_size=xdim,
+            if  self.f2dim>0:
+                self.f2 = BiRNN(input_size=xdim,
                        hidden_size=512,
                        num_layers=1,
                        xdim=self.f2dim)
+            self.f = self.f_automatic
+        else:
+            self.f = f_manual
 
         self.device =device
         self.to(device)
-
-    def f(self, x):
-        if self.f1dim>0 and  self.f2dim ==0:
-            return self.f1(x)
-        elif self.f1dim==0 and  self.f2dim >0:
-            return self.f2(x)
-        else:
-            x= torch.cat([self.f1(x),self.f2(x)], 1)
-            return x
 
     def forward(self, z, x):
         alpha = self.alpha(z)
@@ -142,3 +130,81 @@ class ConditionalConvexQuantile(nn.Module):
         phi = (self.alpha(u).view(-1) + (self.beta(u) * f).sum(1).view(-1)).sum()
         d_phi = torch.autograd.grad(phi, u, create_graph=True)[0]
         return d_phi
+
+    def f_automatic(self, x):
+        if self.f1dim>0 and  self.f2dim ==0:
+            return self.f1(x)
+        elif self.f1dim==0 and  self.f2dim >0:
+            return self.f2(x)
+        else:
+            x= torch.cat([self.f1(x),self.f2(x)], 1)
+            return x
+
+
+def train(generator, critic, simulator, Epochs=1000,
+          critic_gp_factor = 5,critic_lr = 1e-3,
+          critic_steps = 15,
+          generator_lr = 1e-3,
+          print_every=20, device="cuda",
+          n_iter=1000, test_iter=10):
+
+    # setup training objects
+    start_time = time()
+    local_start_time = time()
+
+    step = 1
+
+    generator.to(device), critic.to(device)
+    opt_generator = optim.Adam(generator.parameters(), lr=generator_lr)
+    opt_critic = optim.Adam(critic.parameters(), lr=critic_lr)
+
+    for epoch in range(Epochs):
+        # train loop
+        WD_train, WD_test= 0, 0
+        n_critic = 0
+        critic_update = True
+
+        for iter in range(n_iter):
+            x, context = simulator()
+            x, context = x.to(device), context.to(device)
+            generator.zero_grad()
+            critic.zero_grad()
+            x_hat = generator(context)
+            critic_x_hat = critic(x_hat, context).mean()
+
+
+            if n_critic < critic_steps:
+                critic_x = critic(x, context).mean()
+                WD = critic_x - critic_x_hat
+                loss = - WD
+                loss += critic_gp_factor * critic.gradient_penalty(x, x_hat, context)
+                loss.backward()
+                opt_critic.step()
+                WD_train += WD.item()
+                n_critic += 1
+
+            else: #generator 1 step.
+                loss = - critic_x_hat
+                loss.backward()
+                opt_generator.step()
+                n_critic = 0 # now, the critic will again be trained.
+
+            step += 1
+        WD_train /= n_iter
+        # test loop
+
+        for iter_t in range(test_iter):
+            x, context = simulator()
+            x, context = x.to(device), context.to(device)
+            with torch.no_grad():
+                x_hat = generator(context)
+                critic_x_hat = critic(x_hat, context).mean()
+                critic_x = critic(x, context).mean()
+                WD_test += (critic_x - critic_x_hat).item()
+        WD_test /= test_iter
+        # diagnostics
+        if epoch % print_every == 0:
+            description = "epoch {} | step {} | WD_test {} | WD_train {} | sec passed {} (total {}) |".format(
+            epoch, step, round(WD_test, 2), round(WD_train, 2),round(time() - local_start_time),round(time() - start_time) )
+            print(description)
+            local_start_time = time()

@@ -3,6 +3,8 @@ This is code for  Adversarial Bayesian Simulation (Yuexi Wang, Veronika Rockova)
 
 TODO) the data should be normalized if want to mimic the original code by Wuexi Wang.
 TODO) clean up device
+
+TODO) JK2: use all my network designs and learning schedule for training. Adam update principle. and, my learning rate.
 """
 
 from IPython.core.debugger import set_trace
