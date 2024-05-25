@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from _nets.ot_modules.icnn import ICNN_LastInp_Quadratic
+from _nets.icnn import ICNN_LastInp_Quadratic
 #from supp.distribution_output import *
 from _nets.basic_nets import  MLP
 
