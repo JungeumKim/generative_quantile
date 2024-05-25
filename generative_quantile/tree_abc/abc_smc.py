@@ -118,7 +118,6 @@ class ABCSMC():
 
         is_inds = np.random.choice(self.desired_post_size, self.desired_post_size, replace=True, p=self.w)
         self.posteriors.append(self.thetasb[is_inds])
-        self.maps.append(misc.map_from_kde(self.thetasb[is_inds]))
         self.tvalues.append(self.n_evaluations)
 
         self.post_history[0] = self.thetasb
@@ -197,7 +196,6 @@ class ABCSMC():
             self.post = self.thetasb[is_inds]
             self.posteriors.append(self.post)
             # self.extras.append(self.extra[is_inds])
-            self.maps.append(misc.map_from_kde(self.post))
             self.tvalues.append(self.n_evaluations)
             self.c_eps = b
             if self.verbose:

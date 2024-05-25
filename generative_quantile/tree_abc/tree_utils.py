@@ -32,19 +32,6 @@ class AABB:
         return left, right
 
 class Tree:
-    """Parent class for wrapper for various tree implementations for standardized usage"""
-
-    length: int
-    node_indices: list
-    dim: int
-    support: np.ndarray
-    _tree: Any
-
-    leaf_boundaries: np.ndarray
-    leaf_intensities: np.ndarray
-
-    leaf_acceptances: np.ndarray
-    leaf_rejections: np.ndarray
 
     def __init__(self, X, y, support):
         self.support = support

@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tree_abc.tree_utils import TreeProposal, CARTTree
 from sklearn import tree
-from tqdm import tqdm
-
+#from tqdm import tqdm
+np.seterr(invalid='ignore')
 def RULE_POSTERIOR(prior_probs, lh_probs):
     return prior_probs * lh_probs
 
@@ -75,7 +75,7 @@ class TreeABC:
 
         self.proposal_info = {}
 
-        pbar = tqdm(total=self.budget)
+        #pbar = tqdm(total=self.budget)
 
         n_accepted = 0
         t = 0
@@ -89,7 +89,7 @@ class TreeABC:
             if self.acceptances[t] == 1:
                 n_accepted += 1
             t += 1
-            pbar.update(1)
+            #pbar.update(1)
 
         if self.verbose:
             print(f"Batch 1 done, {t} sims done. Current epsilon = {self.epsilon_sch[0]}")
@@ -153,7 +153,7 @@ class TreeABC:
                 # update TP now
                 TP.update(bin_idx, self.discrepancies[t] < self.epsilon_sch[self.c_eps], n_add=1)
                 t += 1
-                pbar.update(1)
+                #pbar.update(1)
                 if t % self.save_every == 0:
                     self.proposal_info[t] = {"bounds": TP.boundaries, "probs": TP.probs}
 
@@ -179,7 +179,7 @@ class TreeABC:
 
             self.c_eps += 1
 
-        pbar.close()
+        #pbar.close()
         self.tree_model = tree_model
         self.tree_obj = tree_obj
         self.TP = TP
