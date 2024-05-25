@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from brenier.ot_modules.icnn import *
+from _nets.ot_modules.icnn import ICNN_LastInp_Quadratic
 #from supp.distribution_output import *
-from brenier.supp.piecewise_linear import *
 from _nets.basic_nets import  MLP
 
 from IPython.core.debugger import set_trace
@@ -53,30 +52,6 @@ def dual_JK(U, Y_hat, Y, X, eps=0,efficient=False):
     return loss
 
 
-
-def dual(U, Y_hat, Y, X, eps=0):
-    alpha, beta = Y_hat # alpha(U) + beta(U)^{T}X
-    Y = Y.permute(1, 0) #d x n
-    X = X.permute(1, 0) # d x n
-    # beta: n x d, x: d x n,
-    BX = torch.mm(beta, X) # n x n
-    loss = torch.mean(alpha)
-    # U: n x d  , Y: d x n
-    UY = torch.mm(U, Y) # n x n
-    # (U, Y), (U, X), beta.shape(bs, nclass), X.shape(bs, nclass)
-    #print(BX.shape, UY.shape, alpha.shape)
-    psi = UY - alpha - BX # n x n - n x 1 - n x n
-    sup, _ = torch.max(psi, dim=0)
-    #print(sup.shape)
-    #print(UY.min(), UY.max(), sup.mean())
-    loss += torch.mean(sup)
-
-    if eps == 0:
-        return loss
-
-    l = torch.exp((psi-sup)/eps)
-    loss += eps*torch.mean(l)
-    return loss
 
 
 class BiRNN(nn.Module):
