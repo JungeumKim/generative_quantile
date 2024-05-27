@@ -9,8 +9,8 @@ from _utils.breiner_util import uniform_on_unit_ball
 
 from IPython.core.debugger import set_trace
 
-def dual_JK(U, Y_hat, Y, X):
-    alpha, beta = Y_hat # alpha(U) + beta(U)^{T}X
+def dual_JK(U, alpha, beta, Y, X):
+    # alpha(U) + beta(U)^{T}X
     # alpha: n x 1, beta: n x d, X: n x d,
     Y = Y.permute(1, 0) #d x n
     X = X.permute(1, 0) # d x n
@@ -153,8 +153,8 @@ class BayesQ():
 
         self.np_random = np.random.RandomState(seed)
         self.net = ConditionalConvexQuantile(xdim=x_dim,
-                                    ydim=theta_dim,
-                                    fdim=f1_dim,
+                                    udim=theta_dim,
+                                    f1dim=f1_dim,
                                     f2dim=f2_dim,
                                     a_hid=512,
                                     a_layers=3,
@@ -174,15 +174,15 @@ class BayesQ():
 
     def train(self):
         for epoch in range(1, self.epochs +1):
+            print(f"Epoch {epoch}")
             optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
             running_loss = 0.0
             for idx in range(self.n_iter):
 
-                Thetas, x,y = self.simulator(self.batch_size,
+                Thetas, X = self.simulator(self.batch_size,
                                              np_random = self.np_random)
-                Thetas = torch.from_numpy(Thetas).float().to(self.device)
-                X = torch.from_numpy(np.stack([x,y],2)).float().to(self.device)
-                X = X.clip(0,10**7)
+                Thetas = Thetas.float().to(self.device)
+                X = X.float().to(self.device)
 
                 #Thetas: batch_size x theta_dim, X: batch_size x n_sample
                 # X later changes to batch_size x x_dim x m, where m = n_sample/x_dim
@@ -190,13 +190,8 @@ class BayesQ():
                 u = torch.from_numpy(u).float().to(self.device)
 
                 optimizer.zero_grad()
-                alpha, beta, box= self.net(u, X)
-                fX = box[0]
-                #fX,_ = net.f(X)#: (args.batch_size, 201,args.x_dim=2))
-                #alpha, beta= net(u)
-                print("a",idx)
-                loss = dual_JK(U=u, Y_hat=(alpha, beta), Y=Thetas, X=fX, eps=0)
-                print("b",idx)
+                alpha, beta, fX= self.net(u, X)
+                loss = dual_JK(u, alpha, beta, Y=Thetas, X=fX)
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
