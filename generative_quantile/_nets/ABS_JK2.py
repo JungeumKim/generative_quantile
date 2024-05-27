@@ -8,7 +8,7 @@ TODO) JK2: use all my network designs and learning schedule for training. Adam u
 """
 
 from IPython.core.debugger import set_trace
-
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
