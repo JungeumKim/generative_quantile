@@ -148,13 +148,14 @@ class BayesQ():
 
     def __init__(self, simulator, device="cuda",
                  epochs=1000, batch_size = 200,
-                 seed = 1234, parallel=False, lr =0.01, n_iter=1000, param_dim = 2):
+                 seed = 1234, parallel=False, lr =0.01,
+                 n_iter=1000, theta_dim = 2,x_dim=2, f1_dim=1,f2_dim=1):
 
         self.np_random = np.random.RandomState(seed)
-        self.net = ConditionalConvexQuantile(xdim=args.x_dim,
-                                    ydim= args.param_dim,
-                                    fdim=args.f1_dim,
-                                    f2dim=args.f2_dim,
+        self.net = ConditionalConvexQuantile(xdim=x_dim,
+                                    ydim=theta_dim,
+                                    fdim=f1_dim,
+                                    f2dim=f2_dim,
                                     a_hid=512,
                                     a_layers=3,
                                     b_hid=512,
@@ -167,7 +168,7 @@ class BayesQ():
         self.device = device
         self.epochs = epochs
         self.batch_size = batch_size
-        self.param_dim = param_dim
+        self.theta_dim = theta_dim
         self.lr = lr
         self.n_iter = n_iter
 
@@ -183,9 +184,9 @@ class BayesQ():
                 X = torch.from_numpy(np.stack([x,y],2)).float().to(self.device)
                 X = X.clip(0,10**7)
 
-                #Thetas: batch_size x param_dim, X: batch_size x n_sample
+                #Thetas: batch_size x theta_dim, X: batch_size x n_sample
                 # X later changes to batch_size x x_dim x m, where m = n_sample/x_dim
-                u = uniform_on_unit_ball(self.batch_size, self.param_dim, np_random=self.np_random)
+                u = uniform_on_unit_ball(self.batch_size, self.theta_dim, np_random=self.np_random)
                 u = torch.from_numpy(u).float().to(self.device)
 
                 optimizer.zero_grad()
