@@ -1,7 +1,11 @@
+import numpy as np
 import torch
+import torch.optim as optim
 import torch.nn as nn
 from _nets.icnn import ICNN_LastInp_Quadratic
 from _nets.basic_nets import  MLP
+from _utils.breiner_util import uniform_on_unit_ball
+
 
 from IPython.core.debugger import set_trace
 
@@ -140,71 +144,63 @@ class ConditionalConvexQuantile(nn.Module):
             x= torch.cat([self.f1(x),self.f2(x)], 1)
             return x
 
+class BayesQ():
 
-def train(generator, critic, simulator, Epochs=1000,
-          critic_gp_factor = 5,critic_lr = 1e-3,
-          critic_steps = 15,
-          generator_lr = 1e-3,
-          print_every=20, device="cuda",
-          n_iter=1000, test_iter=10):
+    def __init__(self, simulator, device="cuda",
+                 epochs=1000, batch_size = 200,
+                 seed = 1234, parallel=False, lr =0.01, n_iter=1000, param_dim = 2):
 
-    # setup training objects
-    start_time = time()
-    local_start_time = time()
+        self.np_random = np.random.RandomState(seed)
+        self.net = ConditionalConvexQuantile(xdim=args.x_dim,
+                                    ydim= args.param_dim,
+                                    fdim=args.f1_dim,
+                                    f2dim=args.f2_dim,
+                                    a_hid=512,
+                                    a_layers=3,
+                                    b_hid=512,
+                                    b_layers=3, device="cpu")
+        if parallel and (torch.cuda.device_count() > 1):
+            self.net = torch.nn.DataParallel(self.net)
+        self.net.to(device)
 
-    step = 1
+        self.simulator = simulator
+        self.device = device
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.param_dim = param_dim
+        self.lr = lr
+        self.n_iter = n_iter
 
-    generator.to(device), critic.to(device)
-    opt_generator = optim.Adam(generator.parameters(), lr=generator_lr)
-    opt_critic = optim.Adam(critic.parameters(), lr=critic_lr)
+    def train(self):
+        for epoch in range(1, self.epochs +1):
+            optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
+            running_loss = 0.0
+            for idx in range(self.n_iter):
 
-    for epoch in range(Epochs):
-        # train loop
-        WD_train, WD_test= 0, 0
-        n_critic = 0
-        critic_update = True
+                Thetas, x,y = self.simulator(self.batch_size,
+                                             np_random = self.np_random)
+                Thetas = torch.from_numpy(Thetas).float().to(self.device)
+                X = torch.from_numpy(np.stack([x,y],2)).float().to(self.device)
+                X = X.clip(0,10**7)
 
-        for iter in range(n_iter):
-            x, context = simulator()
-            x, context = x.to(device), context.to(device)
-            generator.zero_grad()
-            critic.zero_grad()
-            x_hat = generator(context)
-            critic_x_hat = critic(x_hat, context).mean()
+                #Thetas: batch_size x param_dim, X: batch_size x n_sample
+                # X later changes to batch_size x x_dim x m, where m = n_sample/x_dim
+                u = uniform_on_unit_ball(self.batch_size, self.param_dim, np_random=self.np_random)
+                u = torch.from_numpy(u).float().to(self.device)
 
-
-            if n_critic < critic_steps:
-                critic_x = critic(x, context).mean()
-                WD = critic_x - critic_x_hat
-                loss = - WD
-                loss += critic_gp_factor * critic.gradient_penalty(x, x_hat, context)
+                optimizer.zero_grad()
+                alpha, beta, box= self.net(u, X)
+                fX = box[0]
+                #fX,_ = net.f(X)#: (args.batch_size, 201,args.x_dim=2))
+                #alpha, beta= net(u)
+                print("a",idx)
+                loss = dual_JK(U=u, Y_hat=(alpha, beta), Y=Thetas, X=fX, eps=0)
+                print("b",idx)
                 loss.backward()
-                opt_critic.step()
-                WD_train += WD.item()
-                n_critic += 1
+                optimizer.step()
+                running_loss += loss.item()
 
-            else: #generator 1 step.
-                loss = - critic_x_hat
-                loss.backward()
-                opt_generator.step()
-                n_critic = 0 # now, the critic will again be trained.
+            print('%.5f' %(running_loss))
 
-            step += 1
-        WD_train /= n_iter
-        # test loop
 
-        for iter_t in range(test_iter):
-            x, context = simulator()
-            x, context = x.to(device), context.to(device)
-            with torch.no_grad():
-                x_hat = generator(context)
-                critic_x_hat = critic(x_hat, context).mean()
-                critic_x = critic(x, context).mean()
-                WD_test += (critic_x - critic_x_hat).item()
-        WD_test /= test_iter
-        # diagnostics
-        if epoch % print_every == 0:
-            description = "epoch {} | step {} | WD_test {} | WD_train {} | sec passed {} (total {}) |".format(
-            epoch, step, round(WD_test, 2), round(WD_train, 2),round(time() - local_start_time),round(time() - start_time) )
-            print(description)
-            local_start_time = time()
+

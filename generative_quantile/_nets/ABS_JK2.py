@@ -78,7 +78,7 @@ class Critic(nn.Module):
 
 class ABS():
 
-    def __init__(self, simulator, x_dim, theta_dim, ss_dim, device="cuda",epochs=1000, batch_size = 200):
+    def __init__(self, simulator, x_dim, theta_dim, ss_dim, device="cuda",epochs=1000, batch_size = 200, seed=1234):
 
         self.generator = Generator(d_hidden = [128,128,128], x_dim = theta_dim, z_dim =ss_dim,
                             cond_dim=x_dim,dropout = 0.1, activation = "relu")
@@ -86,7 +86,7 @@ class ABS():
         self.critic = Critic(activation = "relu",dropout = 0,input_dim=theta_dim,
                       d_cond = x_dim, d_hidden = [128,128,128])
 
-
+        self.np_random = np.random.RandomState(seed)
         self.generator.to(device), self.critic.to(device)
         self.simulator = simulator
         self.device = device
@@ -118,7 +118,7 @@ class ABS():
             critic_update = True
 
             for iter in range(n_iter):
-                x, context = simulator(batch_size = self.batch_size)
+                x, context = simulator(batch_size = self.batch_size,np_random = self.np_random)
                 x, context = x.to(self.device), context.to(self.device)
                 generator.zero_grad()
                 critic.zero_grad()
