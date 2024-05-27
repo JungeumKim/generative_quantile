@@ -84,7 +84,7 @@ class ABS():
                             cond_dim=x_dim,dropout = 0.1, activation = "relu")
 
         self.critic = Critic(activation = "relu",dropout = 0,input_dim=theta_dim,
-                      d_cond = 4,d_hidden = [128,128,128])
+                      d_cond = x_dim, d_hidden = [128,128,128])
 
 
         self.generator.to(device), self.critic.to(device)
