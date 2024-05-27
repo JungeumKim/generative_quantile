@@ -76,71 +76,89 @@ class Critic(nn.Module):
         return penalty
 
 
-def train(generator, critic, simulator, Epochs=1000,
-          critic_gp_factor = 5,critic_lr = 1e-3,
-          critic_steps = 15,
-          generator_lr = 1e-3,
-          print_every=20, device="cuda",
-          n_iter=1000, test_iter=10):
+class ABS():
 
-    # setup training objects
-    start_time = time()
-    local_start_time = time()
+    def __init__(self, simulator, x_dim, theta_dim, ss_dim, device="cuda",epochs=1000, batch_size = 200):
 
-    step = 1
+        self.generator = Generator(d_hidden = [128,128,128], x_dim = theta_dim, z_dim =ss_dim,
+                            cond_dim=x_dim,dropout = 0.1, activation = "relu")
 
-    generator.to(device), critic.to(device)
-    opt_generator = optim.Adam(generator.parameters(), lr=generator_lr)
-    opt_critic = optim.Adam(critic.parameters(), lr=critic_lr)
-
-    for epoch in range(Epochs):
-        # train loop
-        WD_train, WD_test= 0, 0
-        n_critic = 0
-        critic_update = True
-
-        for iter in range(n_iter):
-            x, context = simulator()
-            x, context = x.to(device), context.to(device)
-            generator.zero_grad()
-            critic.zero_grad()
-            x_hat = generator(context)
-            critic_x_hat = critic(x_hat, context).mean()
+        self.critic = Critic(activation = "relu",dropout = 0,input_dim=theta_dim,
+                      d_cond = 4,d_hidden = [128,128,128])
 
 
-            if n_critic < critic_steps:
-                critic_x = critic(x, context).mean()
-                WD = critic_x - critic_x_hat
-                loss = - WD
-                loss += critic_gp_factor * critic.gradient_penalty(x, x_hat, context)
-                loss.backward()
-                opt_critic.step()
-                WD_train += WD.item()
-                n_critic += 1
+        self.generator.to(device), self.critic.to(device)
+        self.simulator = simulator
+        self.device = device
+        self.epochs = epochs
+        self.batch_size = batch_size
 
-            else: #generator 1 step.
-                loss = - critic_x_hat
-                loss.backward()
-                opt_generator.step()
-                n_critic = 0 # now, the critic will again be trained.
+    def train(self, critic_gp_factor = 5,
+              critic_lr = 1e-3,
+              critic_steps = 15,
+              generator_lr = 1e-3,
+              print_every=20,
+              n_iter=1000,
+              test_iter=10):
+        generator = self.generator
+        critic = self.critic
+        simulator = self.simulator
+        # setup training objects
+        start_time = time()
+        local_start_time = time()
+        step = 1
 
-            step += 1
-        WD_train /= n_iter
-        # test loop
+        opt_generator = optim.Adam(generator.parameters(), lr=generator_lr)
+        opt_critic = optim.Adam(critic.parameters(), lr=critic_lr)
 
-        for iter_t in range(test_iter):
-            x, context = simulator()
-            x, context = x.to(device), context.to(device)
-            with torch.no_grad():
+        for epoch in range(self.epochs):
+            # train loop
+            WD_train, WD_test= 0, 0
+            n_critic = 0
+            critic_update = True
+
+            for iter in range(n_iter):
+                x, context = simulator(batch_size = self.batch_size)
+                x, context = x.to(self.device), context.to(self.device)
+                generator.zero_grad()
+                critic.zero_grad()
                 x_hat = generator(context)
                 critic_x_hat = critic(x_hat, context).mean()
-                critic_x = critic(x, context).mean()
-                WD_test += (critic_x - critic_x_hat).item()
-        WD_test /= test_iter
-        # diagnostics
-        if epoch % print_every == 0:
-            description = "epoch {} | step {} | WD_test {} | WD_train {} | sec passed {} (total {}) |".format(
-            epoch, step, round(WD_test, 2), round(WD_train, 2),round(time() - local_start_time),round(time() - start_time) )
-            print(description)
-            local_start_time = time()
+
+
+                if n_critic < critic_steps:
+                    critic_x = critic(x, context).mean()
+                    WD = critic_x - critic_x_hat
+                    loss = - WD
+                    loss += critic_gp_factor * critic.gradient_penalty(x, x_hat, context)
+                    loss.backward()
+                    opt_critic.step()
+                    WD_train += WD.item()
+                    n_critic += 1
+
+                else: #generator 1 step.
+                    loss = - critic_x_hat
+                    loss.backward()
+                    opt_generator.step()
+                    n_critic = 0 # now, the critic will again be trained.
+
+                step += 1
+            WD_train /= n_iter
+            # test loop
+
+            for iter_t in range(test_iter):
+                x, context = simulator()
+                x, context = x.to(self.device), context.to(self.device)
+                with torch.no_grad():
+                    x_hat = generator(context)
+                    critic_x_hat = critic(x_hat, context).mean()
+                    critic_x = critic(x, context).mean()
+                    WD_test += (critic_x - critic_x_hat).item()
+            WD_test /= test_iter
+            # diagnostics
+            if epoch % print_every == 0:
+                description = "epoch {} | step {} | WD_test {} | WD_train {} | sec passed {} (total {}) |".format(
+                epoch, step, round(WD_test, 2), round(WD_train, 2),round(time() - local_start_time),round(time() - start_time) )
+                print(description)
+                local_start_time = time()
 
