@@ -13,6 +13,11 @@ np.seterr(invalid='ignore')
 def q_A(p,pi,A):
     q = np.sqrt((p*pi)/((2*A) - (p/pi)))
     return q/np.sum(q)
+def omega(q, p, pi):
+    # with warnings.catch_warnings():
+    #     warnings.simplefilter("ignore", category=RuntimeWarning)
+    # return np.sum(q * p / pi) / np.sum(pi * p / q)
+    return np.sum(np.where(pi != 0, q*p /pi, 0)) / np.sum(np.where(q != 0, pi*p/q, 0))
 
 def omega_A(p, pi, A):
     return omega(q_A(p,pi,A), p, pi)
@@ -36,7 +41,7 @@ def RULE_POSTERIOR(prior_probs, lh_probs):
 
 class TreeABC_wrapper:
     def __init__(self, tree_simulator,support,observed_data,budget = 10000,
-                 eps_discount_factor = 0.9,n_repeats = 100, initial_eps = 2.0,
+                 eps_discount_factor = 0.9,n_repeats = 100, initial_eps = 0.2,
                  verbose=True):
 
 
