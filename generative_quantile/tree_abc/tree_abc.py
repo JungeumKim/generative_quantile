@@ -63,7 +63,7 @@ class TreeABC_wrapper:
         self.tabc.inference()
 
     def sampler(self,batch_size=100, n_proposal=5000):
-        self.tabc.sampler(batch_size, n_proposal)
+        return self.tabc.sampler(batch_size, n_proposal)
 
 class TreeABC:
     def __init__(
@@ -273,7 +273,9 @@ class TreeABC:
         wlp = imports_now#[order][-batch_size:]
         wlp = wlp / np.sum(wlp)
         plp_inds = np.random.choice(len(wlp), batch_size,  replace=True, p=wlp)
-
+        
+        #set_trace()
+        #print(thlp[plp_inds])
         return thlp[plp_inds]
 
 
