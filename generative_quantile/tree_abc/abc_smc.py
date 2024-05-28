@@ -1,3 +1,4 @@
+from IPython.core.debugger import set_trace
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
@@ -18,7 +19,7 @@ class ABCR_wrapper:
 
         samples = self.abcr.posterior(epsilon)
 
-        return samples[batch_size]
+        return samples[:batch_size]
 
 class ABCR:
     """Rejection sampling ABC object"""
@@ -75,7 +76,7 @@ class ABCSMC_wrapper:
 
     def sampler(self,batch_size=100, n_pool = 10000 ):
 
-        return self.smc.posterior(eps=None, n=batch_size)
+        return self.smc.posterior()[:batch_size]
 
 
 
@@ -263,7 +264,6 @@ class ABCSMC():
         n_s = thetas_.shape[0]
 
         p_n = imp_ / np.sum(imp_)
-
         is_indices = np.random.choice(n_s, n_s, replace=True, p=p_n)
 
         return thetas_[is_indices]
