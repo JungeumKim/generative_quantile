@@ -2,6 +2,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
+class ABCR_wrapper:
+    def __init__(self, tree_simulator,support,observed_data,budget = 10000):
+
+        self.abcr= ABCR(budget, support, tree_simulator.prior_sim,
+                        tree_simulator.discrepancy,
+                        observed_data)
+
+    def train(self):
+        self.abcr.inference()
+
+    def sampler(self,batch_size=100, n_pool = 10000 ):
+
+        epsilon = np.quantile(self.abcr.discrepancies[:n_pool], 0.1)
+
+        samples = self.abcr.posterior(epsilon)
+
+        return samples[batch_size]
+
 class ABCR:
     """Rejection sampling ABC object"""
 
@@ -10,14 +28,11 @@ class ABCR:
         self.support = support
         self.budget = budget
         self.prior_sim = prior_sim
-        # self.simulator = simulator
         self.discrepancy = discrepancy
         self.xobs = xobs
-        self.inference()
 
     def inference(self):
         self.thetas = self.prior_sim(self.budget)
-        # self.simdata = self.simulator(self.thetas)
         self.discrepancies = self.discrepancy(self.thetas, self.xobs)
 
     def posterior(self, epsilon, n_evaluations=None):
@@ -35,6 +50,34 @@ class ABCR:
             respost = respost.reshape(-1, 1)
 
         return respost
+
+
+class ABCSMC_wrapper:
+    def __init__(self, tree_simulator,support,observed_data,budget = 10000,
+                 eps_discount_factor = 0.9,n_repeats = 100, initial_eps = 0.2):
+
+
+        rabc = ABCR(budget, support, tree_simulator.prior_sim,
+                        tree_simulator.discrepancy, observed_data)
+
+        eps_init = np.quantile(rabc.discrepancies, initial_eps)
+
+        eps_sched = eps_init * (eps_discount_factor ** np.arange(n_repeats))
+
+        self.smc= ABCSMC(budget, support, tree_simulator.prior_sim,
+                        tree_simulator.discrepancy,
+                        observed_data,
+                         tree_simulator.prior_density,
+                         eps_sched)
+
+    def train(self):
+        self.smc.inference()
+
+    def sampler(self,batch_size=100, n_pool = 10000 ):
+
+        return self.smc.posterior(eps=None, n=batch_size)
+
+
 
 class ABCSMC():
     """Sequential Monte Carlo/Population Monte Carlo ABC object"""
@@ -71,7 +114,7 @@ class ABCSMC():
 
         self.verbose = verbose
 
-        self.inference()
+        #self.inference()
 
     def inference(self):
         """Performs likelihood-free inference on the given problem instance
@@ -202,8 +245,8 @@ class ABCSMC():
                 print(f"Batch {b+1} done, {self.n_evaluations} sims done")
 
     def posterior(self, eps=None, n=None):
-        """Returns an empirical measure approximating the posterior after n draws
-
+        """
+        Returns an empirical measure approximating the posterior after n draws
         n must be less than or equal to n_evaluations in the previous call to inference
         """
 

@@ -44,7 +44,6 @@ class TreeABC_wrapper:
                  eps_discount_factor = 0.9,n_repeats = 100, initial_eps = 0.2,
                  verbose=True):
 
-
         rabc = ABCR(budget, support, tree_simulator.prior_sim,
                         tree_simulator.discrepancy, observed_data)
         eps_init = np.quantile(rabc.discrepancies, initial_eps)
@@ -106,7 +105,6 @@ class TreeABC:
         self.tvalues = []
         self.max_points_to_fit = max_points_to_fit
         print(f"MPTF: {max_points_to_fit}")
-
 
     def inference(self):
         """Performs likelihood-free inference on the given problem instance
