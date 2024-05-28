@@ -6,14 +6,8 @@ class Conjugate_Model:
     def __init__(self, 
                  input_dim=2,
                  seed=59,
-                 eps_discount_factor = 0.9,n_repeats = 1000, initial_eps = 2.0,
-                 h_param={"nu":25, "sigma0_sq":1, "mu0":0,"kappa":1},
-                 obs_data=np.array([0,0]), support = np.array([[-10,10],[0,10]])):
+                 h_param={"nu":25, "sigma0_sq":1, "mu0":0,"kappa":1}):
 
-        self.support = support
-        self.observed_data = obs_data
-        self.epsilon_schedule = initial_eps * eps_discount_factor ** np.arange(n_repeats)
-        self.bandwidth = 0.5
         self.input_dim =input_dim
         self.np_random = np.random.RandomState(seed)
         self.h_param = h_param

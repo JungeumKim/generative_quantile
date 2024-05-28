@@ -28,7 +28,6 @@ class Generator(nn.Module):
         d_out = d_hidden + [x_dim ]
         self.layers = nn.ModuleList([nn.Linear(i, o) for i, o in zip(d_in, d_out)])
         self.dropout = nn.Dropout(dropout)
-
         self.activation = F.relu if activation == "relu" else F.leaky_relu
 
 
@@ -57,7 +56,6 @@ class Critic(nn.Module):
 
     def forward(self, x, context):
 
-        #set_trace()
         x = torch.cat([x, context], -1)
         for layer in self.layers[:-1]:
             x = self.dropout(self.activation(layer(x)))
@@ -162,3 +160,7 @@ class ABS():
                 print(description)
                 local_start_time = time()
 
+    def sampler(self, X, batch_size):
+        X = X.view(1, -1).repeat(batch_size, 1)
+        with torch.no_grad():
+            return self.generator(X)

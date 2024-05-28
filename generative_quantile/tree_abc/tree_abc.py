@@ -3,11 +3,62 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 from tree_abc.tree_utils import TreeProposal, CARTTree
+from tree_abc.abc_smc import ABCR
 from sklearn import tree
+from scipy import optimize
+
 #from tqdm import tqdm
 np.seterr(invalid='ignore')
+
+def q_A(p,pi,A):
+    q = np.sqrt((p*pi)/((2*A) - (p/pi)))
+    return q/np.sum(q)
+
+def omega_A(p, pi, A):
+    return omega(q_A(p,pi,A), p, pi)
+
+def RULE_OPTIMAL_MAX_A(prior_probs, lh_probs):
+    p = prior_probs * lh_probs / np.sum(prior_probs * lh_probs)
+    pi = prior_probs / np.sum(prior_probs)
+
+    def target(A):
+        return -1 * omega_A(p, pi, A)
+
+    bnds = [0.5*np.max(p/pi), np.max(p/pi)]
+
+    res = optimize.minimize_scalar(target, 0.75*np.max(p/pi), bounds=bnds, method="bounded")
+    A_star = res.x
+
+    return q_A(p,pi,A_star)
+
 def RULE_POSTERIOR(prior_probs, lh_probs):
     return prior_probs * lh_probs
+
+class TreeABC_wrapper:
+    def __init__(self, tree_simulator,support,observed_data,budget = 10000,
+                 eps_discount_factor = 0.9,n_repeats = 100, initial_eps = 2.0,
+                 verbose=True):
+
+
+        rabc = ABCR(budget, support, tree_simulator.prior_sim,
+                        tree_simulator.discrepancy, observed_data)
+        eps_init = np.quantile(rabc.discrepancies, initial_eps)
+        eps_sched = eps_init * (eps_discount_factor ** np.arange(n_repeats))
+
+        self.tabc = TreeABC(budget, support, tree_simulator.prior_sim,
+                        tree_simulator.discrepancy,
+                        observed_data,
+                        tree_simulator.prior_density,
+                        eps_sched,
+                        verbose=verbose,
+                        proposal_update_rule=RULE_OPTIMAL_MAX_A, #treeproposal.RULE_POSTERIOR,
+                        n_leaves=1000)
+
+    def train(self):
+        self.tabc.inference()
+
+    def sampler(self,batch_size=100, n_proposal=5000):
+        self.tabc.sampler(batch_size, n_proposal)
 
 class TreeABC:
     def __init__(
@@ -24,7 +75,7 @@ class TreeABC:
         n_leaves=1000,
         maxdepth=6,
         n_trees_bart=10,
-        proposal_update_rule=RULE_POSTERIOR, #RULE_OPTIMAL_MAX_A,
+        proposal_update_rule= RULE_OPTIMAL_MAX_A, #RULE_POSTERIOR, #RULE_OPTIMAL_MAX_A,
         save_every=1000,
         max_points_to_fit = None,
         *args,
@@ -51,7 +102,6 @@ class TreeABC:
         self.max_points_to_fit = max_points_to_fit
         print(f"MPTF: {max_points_to_fit}")
 
-        self.inference()
 
     def inference(self):
         """Performs likelihood-free inference on the given problem instance
@@ -205,7 +255,7 @@ class TreeABC:
         return thetas_[accepts_ == 1][is_indices]
 
 
-    def massive_sample(self, batch_size=100, n_proposal=5000):
+    def sampler(self, batch_size=100, n_proposal=5000):
 
         theta_now, _ = self.TP.sample(n_proposal, returnbins=True) #: (n_proposal, dim)
         discr_now = self.discrepancy(theta_now, self.xobs) # from (n_proposal, dim) to (n_proposal,)
