@@ -59,7 +59,7 @@ class ABCSMC_wrapper:
 
         rabc = ABCR(budget, support, tree_simulator.prior_sim,
                         tree_simulator.discrepancy, observed_data)
-
+        rabc.inference()
         eps_init = np.quantile(rabc.discrepancies, initial_eps)
 
         eps_sched = eps_init * (eps_discount_factor ** np.arange(n_repeats))
