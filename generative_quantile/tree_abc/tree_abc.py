@@ -42,7 +42,7 @@ def RULE_POSTERIOR(prior_probs, lh_probs):
 class TreeABC_wrapper:
     def __init__(self, tree_simulator,support,observed_data,budget = 10000,
                  eps_discount_factor = 0.9,n_repeats = 100, initial_eps = 0.2,
-                 verbose=True):
+                 verbose=True,*args, **kwargs):
 
         rabc = ABCR(budget, support, tree_simulator.prior_sim,
                         tree_simulator.discrepancy, observed_data)
@@ -64,6 +64,12 @@ class TreeABC_wrapper:
 
     def sampler(self,batch_size=100, n_proposal=5000):
         return self.tabc.sampler(batch_size, n_proposal)
+
+    def save(self, path):
+        import pickle
+        with open(path, 'wb') as file:
+            pickle.dump(self, file)
+
 
 class TreeABC:
     def __init__(
@@ -276,5 +282,4 @@ class TreeABC:
         #set_trace()
         #print(thlp[plp_inds])
         return thlp[plp_inds]
-
 

@@ -149,7 +149,7 @@ class BayesQ():
     def __init__(self, simulator, device="cuda",
                  epochs=1000, batch_size = 200,
                  seed = 1234, parallel=False, lr =0.01,
-                 n_iter=1000, theta_dim = 2,x_dim=2, f1_dim=1,f2_dim=1, f_manual=None):
+                 n_iter=1000, theta_dim = 2,x_dim=2, f1_dim=1,f2_dim=1, f_manual=None, *args, **kwargs):
 
         self.np_random = np.random.RandomState(seed)
         self.net = ConditionalConvexQuantile(xdim=x_dim,
@@ -207,3 +207,11 @@ class BayesQ():
         X = X.float().view(1, -1).repeat(sample_size, 1).to(self.device).unsqueeze(1)
         sample = self.net.grad(u*r, X)
         return sample.detach().cpu()
+
+    def save(self, path):
+        if isinstance(self.nets, torch.nn.DataParallel):
+
+            torch.save(self.nets.module.state_dict(), path)
+        else:
+            torch.save(self.nets .state_dict(), path)
+

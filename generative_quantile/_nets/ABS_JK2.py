@@ -76,13 +76,22 @@ class Critic(nn.Module):
 
 class ABS():
 
-    def __init__(self, simulator, x_dim, theta_dim, ss_dim, device="cuda",epochs=1000, batch_size = 200, seed=1234):
+    def __init__(self, simulator, x_dim, theta_dim, ss_dim,
+                 device="cuda",epochs=1000, batch_size = 200, seed=1234, *args, **kwargs):
 
-        self.generator = Generator(d_hidden = [128,128,128], x_dim = theta_dim, z_dim =ss_dim,
-                            cond_dim=x_dim,dropout = 0.1, activation = "relu")
 
-        self.critic = Critic(activation = "relu",dropout = 0,input_dim=theta_dim,
-                      d_cond = x_dim, d_hidden = [128,128,128])
+        self.generator = Generator(d_hidden = [128,128,128],
+                                   x_dim = theta_dim,
+                                   z_dim =ss_dim,
+                                   cond_dim=x_dim,
+                                   dropout = 0.1,
+                                   activation = "relu")
+
+        self.critic = Critic(activation = "relu",
+                             dropout = 0,
+                             input_dim=theta_dim,
+                             d_cond = x_dim,
+                             d_hidden = [128,128,128])
 
         self.np_random = np.random.RandomState(seed)
         self.generator.to(device), self.critic.to(device)
@@ -92,9 +101,9 @@ class ABS():
         self.batch_size = batch_size
 
     def train(self, critic_gp_factor = 5,
-              critic_lr = 1e-3,
+              critic_lr = 0.01,
               critic_steps = 15,
-              generator_lr = 1e-3,
+              generator_lr = 0.01,
               print_every=20,
               n_iter=1000,
               test_iter=10):
@@ -106,10 +115,13 @@ class ABS():
         local_start_time = time()
         step = 1
 
-        opt_generator = optim.Adam(generator.parameters(), lr=generator_lr)
-        opt_critic = optim.Adam(critic.parameters(), lr=critic_lr)
+
 
         for epoch in range(self.epochs):
+            print(f"Epoch {epoch}")
+            opt_generator = optim.Adam(generator.parameters(), lr=generator_lr*(0.99**epoch))
+            opt_critic = optim.Adam(critic.parameters(), lr=critic_lr*(0.99**epoch))
+
             # train loop
             WD_train, WD_test= 0, 0
             n_critic = 0
@@ -165,3 +177,11 @@ class ABS():
         X = X.to(self.device)
         with torch.no_grad():
             return self.generator(X)
+
+
+    def save(self, path):
+        # Save the state dictionaries of generator and critic
+        torch.save({
+            'generator': self.generator.state_dict(),
+            'critic': self.critic.state_dict()
+        }, path)

@@ -4,7 +4,7 @@ import numpy as np
 from scipy import stats
 
 class ABCR_wrapper:
-    def __init__(self, tree_simulator,support,observed_data,budget = 10000):
+    def __init__(self, tree_simulator,support,observed_data,budget = 10000,*args, **kwargs):
 
         self.abcr= ABCR(budget, support, tree_simulator.prior_sim,
                         tree_simulator.discrepancy,
@@ -20,6 +20,12 @@ class ABCR_wrapper:
         samples = self.abcr.posterior(epsilon)
 
         return samples[:batch_size]
+
+    def save(self, path):
+        import pickle
+        with open(path, 'wb') as file:
+            pickle.dump(self, file)
+
 
 class ABCR:
     """Rejection sampling ABC object"""
@@ -55,7 +61,7 @@ class ABCR:
 
 class ABCSMC_wrapper:
     def __init__(self, tree_simulator,support,observed_data,budget = 10000,
-                 eps_discount_factor = 0.9,n_repeats = 100, initial_eps = 0.2):
+                 eps_discount_factor = 0.9,n_repeats = 100, initial_eps = 0.2,*args, **kwargs):
 
 
         rabc = ABCR(budget, support, tree_simulator.prior_sim,
@@ -78,7 +84,10 @@ class ABCSMC_wrapper:
 
         return self.smc.posterior()[:batch_size]
 
-
+    def save(self, path):
+        import pickle
+        with open(path, 'wb') as file:
+            pickle.dump(self, file)
 
 class ABCSMC():
     """Sequential Monte Carlo/Population Monte Carlo ABC object"""
