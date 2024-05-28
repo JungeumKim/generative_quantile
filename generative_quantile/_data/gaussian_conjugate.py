@@ -2,6 +2,20 @@ import numpy as np
 import torch
 from IPython.core.debugger import set_trace
 
+
+def X_forward_sampler(thetas, n=2, seed = 12345,np_random = None,
+                      device="cuda",as_torch = False):
+    if np_random is None:
+        np_random = np.random.RandomState(seed)
+
+    m = thetas.shape[0]
+    x =  np_random.normal(thetas[:,0].reshape(-1,1),
+                          thetas[:,1].reshape(-1,1)**(0.5),
+                          size=(m,n))
+    if as_torch:
+        x = torch.from_numpy(x).float().to(device)
+    return x
+
 def tensor_forward_sampler(n = 2, theta_batch_size=100,x_batch_size= 100,
                            device="cuda",seed = 12345,
                             h_param={"nu":25, "sigma0_sq":1, "mu0":0,"kappa":1},
