@@ -160,16 +160,10 @@ class TreeProposal:
 
         self.accs = tree.leaf_acceptances
         self.rejs = tree.leaf_rejections
-
-        # lh_model = (1+self.accs) / (2+self.accs + self.rejs)
-        lh_model = (self.accs) / (self.accs + self.rejs)
-        # lh_model = np.random.beta(1+self.accs, 1+self.rejs, size=len(self.accs))
+        lh_model = (self.accs) / (self.accs + self.rejs + 10**(-30))
         lh_model = lh_model / np.sum(lh_model)
-        # print(f"lh_model: {lh_model}")
         unn_probs = rule(prior_probs, lh_model)
-        # unn_probs = np.sqrt(lh_model) #DEbugging
         unn_probs = unn_probs / np.sum(unn_probs)
-        # print(f"UNN_PROBS: {np.round(unn_probs, 3)}")
         denominator = np.sum(
             unn_probs * np.prod(self.boundaries[:, :, 1] - self.boundaries[:, :, 0], axis=1)
         )
@@ -179,17 +173,12 @@ class TreeProposal:
             self.probs = unn_probs / np.sum(
                 unn_probs * np.prod(self.boundaries[:, :, 1] - self.boundaries[:, :, 0], axis=1)
             )
-
     def sample(self, size, returnbins=False):
         """Draws size samples from this instance's distribution"""
 
 
         n_bins = self.boundaries.shape[0]
         dim = self.support.shape[0]
-
-        # print(f"PROBS: {self.probs}")
-        # print(f"ActualThing: {self.probs * np.prod(self.boundaries[:, :, 1] - self.boundaries[:, :, 0], axis=1)}")
-
         bin_indices = np.random.choice(
             n_bins, size, p=self.probs * np.prod(self.boundaries[:, :, 1] - self.boundaries[:, :, 0], axis=1)
         )
@@ -229,25 +218,11 @@ class TreeProposal:
             self.accs[bin] += n_add
         else:
             self.rejs[bin] += n_add
-        #
         prior_probs = np.ones(len(self.boundaries))
-        # unn_probs = (1+self.accs) / (2+self.accs + self.rejs)
-        # self.probs = unn_probs / np.sum(
-        #     unn_probs * np.prod(self.boundaries[:, :, 1] - self.boundaries[:, :, 0], axis=1)
-        # )
-        #
-        # self.accs = tree.leaf_acceptances
-        # self.rejs = tree.leaf_rejections
-        #
-        # lh_model = (1+self.accs) / (2+self.accs + self.rejs)
-        lh_model = (self.accs) / (self.accs + self.rejs)
-        # lh_model = np.random.beta(1+self.accs, 1+self.rejs, size=len(self.accs))
+        lh_model = (self.accs) / (self.accs + self.rejs+10**(-30))
         lh_model = lh_model / np.sum(lh_model)
-        # print(f"lh_model: {lh_model}")
         unn_probs = self.rule(prior_probs, lh_model)
-        # unn_probs = np.sqrt(lh_model) #DEbugging
         unn_probs = unn_probs / np.sum(unn_probs)
-        # print(f"UNN_PROBS: {np.round(unn_probs,3)}")
         denominator = np.sum(
             unn_probs * np.prod(self.boundaries[:, :, 1] - self.boundaries[:, :, 0], axis=1)
         )
