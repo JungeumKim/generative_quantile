@@ -157,7 +157,7 @@ class ABS():
             # test loop
 
             for iter_t in range(test_iter):
-                x, context = simulator()
+                x, context = simulator(batch_size = self.batch_size)
                 x, context = x.to(self.device), context.to(self.device)
                 with torch.no_grad():
                     x_hat = generator(context)

@@ -209,9 +209,9 @@ class BayesQ():
         return sample.detach().cpu()
 
     def save(self, path):
-        if isinstance(self.nets, torch.nn.DataParallel):
+        if isinstance(self.net, torch.nn.DataParallel):
 
-            torch.save(self.nets.module.state_dict(), path)
+            torch.save(self.net.module.state_dict(), path)
         else:
-            torch.save(self.nets .state_dict(), path)
+            torch.save(self.net .state_dict(), path)
 

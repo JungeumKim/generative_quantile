@@ -74,13 +74,7 @@ class AutoReg():
         sample = self.net(X)
         return sample.detach().cpu()
 
-    def save(self, path):
-        # Save the state dictionaries of generator and critic
-        torch.save({
-            'generator_state_dict': self.generator.state_dict(),
-            'critic_state_dict': self.critic.state_dict()
-        }, path + '_torch.pth')
 
     def save(self, path):
         # Save the state dictionaries of generator and critic
-        torch.save(self.nets.state_dict(), path)
+        torch.save(self.net.state_dict(), path)
