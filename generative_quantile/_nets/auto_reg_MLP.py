@@ -78,3 +78,6 @@ class AutoReg():
     def save(self, path):
         # Save the state dictionaries of generator and critic
         torch.save(self.net.state_dict(), path)
+
+    def load(self, path):
+        self.net.load_state_dict(torch.load(path))

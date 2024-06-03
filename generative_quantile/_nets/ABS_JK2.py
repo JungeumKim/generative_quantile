@@ -185,3 +185,8 @@ class ABS():
             'generator': self.generator.state_dict(),
             'critic': self.critic.state_dict()
         }, path)
+
+    def load(self, path):
+        saved = torch.load(path)
+        self.generator.load_state_dict(saved['generator'])
+        self.critic.load_state_dict(saved['critic'])

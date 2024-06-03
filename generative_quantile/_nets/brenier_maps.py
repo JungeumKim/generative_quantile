@@ -215,3 +215,5 @@ class BayesQ():
         else:
             torch.save(self.net .state_dict(), path)
 
+    def load(self, path):
+        self.net.load_state_dict(torch.load(path))

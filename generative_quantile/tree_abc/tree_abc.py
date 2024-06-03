@@ -70,6 +70,11 @@ class TreeABC_wrapper:
         with open(path, 'wb') as file:
             pickle.dump(self, file)
 
+    def load(self,path):
+        import pickle
+        with open(path, 'rb') as file:
+            saved = pickle.load(file)
+        self.tabc = saved.tabc
 
 class TreeABC:
     def __init__(

@@ -26,6 +26,12 @@ class ABCR_wrapper:
         with open(path, 'wb') as file:
             pickle.dump(self, file)
 
+    def load(self,path):
+        import pickle
+        with open(path, 'rb') as file:
+            saved = pickle.load(file)
+        self.abcr = saved.abcr
+
 
 class ABCR:
     """Rejection sampling ABC object"""
@@ -88,6 +94,12 @@ class ABCSMC_wrapper:
         import pickle
         with open(path, 'wb') as file:
             pickle.dump(self, file)
+
+    def load(self,path):
+        import pickle
+        with open(path, 'rb') as file:
+            saved = pickle.load(file)
+        self.smc = saved.smc
 
 class ABCSMC():
     """Sequential Monte Carlo/Population Monte Carlo ABC object"""
