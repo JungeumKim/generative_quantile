@@ -86,9 +86,9 @@ class ABCSMC_wrapper:
     def train(self):
         self.smc.inference()
 
-    def sampler(self,batch_size=100, n_pool = 10000 ):
+    def sampler(self,X=None, sample_size=100, n_pool = 10000 ):
 
-        return self.smc.posterior()[:batch_size]
+        return self.smc.posterior()[:sample_size]
 
     def save(self, path):
         import pickle

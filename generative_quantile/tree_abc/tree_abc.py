@@ -62,8 +62,8 @@ class TreeABC_wrapper:
     def train(self):
         self.tabc.inference()
 
-    def sampler(self,batch_size=100, n_proposal=5000):
-        return self.tabc.sampler(batch_size, n_proposal)
+    def sampler(self,X=None, sample_size=100, n_proposal=5000):
+        return self.tabc.sampler(sample_size, n_proposal)
 
     def save(self, path):
         import pickle

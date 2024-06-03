@@ -172,8 +172,8 @@ class ABS():
                 print(description)
                 local_start_time = time()
 
-    def sampler(self, X, batch_size):
-        X = X.float().view(1, -1).repeat(batch_size, 1)
+    def sampler(self, X, sample_size):
+        X = X.float().view(1, -1).repeat(sample_size, 1)
         X = X.to(self.device)
         with torch.no_grad():
             return self.generator(X)

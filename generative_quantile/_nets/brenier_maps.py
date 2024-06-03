@@ -199,7 +199,7 @@ class BayesQ():
 
             print('%.5f' %(running_loss))
 
-    def sampler(self, X, r=1, sample_size=100):
+    def sampler(self, X, sample_size=100,r=1):
 
         u = uniform_on_unit_ball(sample_size, self.theta_dim,
                                  np_random = self.np_random)
