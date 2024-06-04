@@ -279,15 +279,16 @@ class TreeABC:
         acc_idx = discr<eps
 
         theta_now = thetas[acc_idx]
-        q = self.TP.density(thetas).reshape(-1)
-        imports_now = self.prior_density(self.thetas).reshape(-1)  / q # (n_proposal, ),  (n_proposal, ) -> (n_proposal, )
-
+        q = self.TP.density(theta_now).reshape(-1)
+        imports_now = self.prior_density(theta_now).reshape(-1)  / q # (n_proposal, ),  (n_proposal, ) -> (n_proposal, )
+        #set_trace()
         # importance resampling
         thlp = theta_now#[order][-batch_size:]
         wlp = imports_now#[order][-batch_size:]
         wlp = wlp / np.sum(wlp)
         plp_inds = np.random.choice(len(wlp), batch_size,
                                     replace=True, p=wlp)
+        #set_trace()
         '''
         thlp = theta_now[-batch_size:]
         wlp = imports_now[-batch_size:]

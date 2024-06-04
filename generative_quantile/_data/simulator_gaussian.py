@@ -11,6 +11,7 @@ class Conjugate_Model:
         self.input_dim =input_dim
         self.np_random = np.random.RandomState(seed)
         self.h_param = h_param
+        self.param_dim =2
 
     def prior_sim(self, size):
         h_param = self.h_param 
@@ -21,7 +22,7 @@ class Conjugate_Model:
 
     def prior_density(self, thetas):
         h_param = self.h_param 
-        thetas = thetas.reshape(1,-1)
+        thetas = thetas.reshape(-1,self.param_dim)
         p_gauss = norm.pdf(thetas[:,0], loc=h_param["mu0"], scale=np.sqrt(thetas[:,1]))
         p_inverse_gamma = invgamma.pdf(thetas[:,1], a=h_param["nu"]/2, 
                                        scale=h_param["sigma0_sq"]*h_param["nu"]/2)
