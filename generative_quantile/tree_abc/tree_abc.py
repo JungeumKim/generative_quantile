@@ -272,18 +272,29 @@ class TreeABC:
 
     def sampler(self, batch_size=100, n_proposal=5000):
 
-        theta_now, _ = self.TP.sample(n_proposal, returnbins=True) #: (n_proposal, dim)
-        #discr_now = self.discrepancy(theta_now, self.xobs) # from (n_proposal, dim) to (n_proposal,)
-        q = self.TP.density(theta_now).reshape(-1)
+        eps = self.epsilon_sch[self.c_eps]
+
+        thetas, _ = self.TP.sample(n_proposal, returnbins=True) #: (n_proposal, dim)
+        discr = self.discrepancy(thetas, self.xobs) # from (n_proposal, dim) to (n_proposal,)
+        acc_idx = discr<eps
+
+        theta_now = thetas[acc_idx]
+        q = self.TP.density(thetas).reshape(-1)
         imports_now = self.prior_density(self.thetas).reshape(-1)  / q # (n_proposal, ),  (n_proposal, ) -> (n_proposal, )
 
         # importance resampling
-        #order = discr_now.argsort()
         thlp = theta_now#[order][-batch_size:]
         wlp = imports_now#[order][-batch_size:]
         wlp = wlp / np.sum(wlp)
-        plp_inds = np.random.choice(len(wlp), batch_size,  replace=True, p=wlp)
-        
+        plp_inds = np.random.choice(len(wlp), batch_size,
+                                    replace=True, p=wlp)
+        '''
+        thlp = theta_now[-batch_size:]
+        wlp = imports_now[-batch_size:]
+        wlp = wlp / np.sum(wlp)
+        plp_inds = np.random.choice(batch_size, batch_size, 
+                   replace=True, p=wlp)
+        '''
         #set_trace()
         #print(thlp[plp_inds])
         return thlp[plp_inds]
