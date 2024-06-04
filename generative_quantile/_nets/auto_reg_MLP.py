@@ -70,8 +70,10 @@ class AutoReg():
             print('%.5f' %(running_loss))
 
     def sampler(self, X, sample_size=100):
-        X = X.float().view(1, -1).repeat(sample_size, 1).to(self.device)
-        sample = self.net(X)
+        
+        X = torch.from_numpy(X).float().view(1, -1).repeat(sample_size, 1).to(self.device)
+        with torch.no_grad():
+            sample = self.net(X.to(self.device))
         return sample.detach().cpu()
 
 

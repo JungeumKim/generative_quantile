@@ -13,12 +13,11 @@ class ABCR_wrapper:
     def train(self):
         self.abcr.inference()
 
-    def sampler(self,batch_size=100, n_pool = 10000 ):
+    def sampler(self,X=None, batch_size=100, n_pool = 10000 ):
 
         epsilon = np.quantile(self.abcr.discrepancies[:n_pool], 0.1)
 
         samples = self.abcr.posterior(epsilon)
-
         return samples[:batch_size]
 
     def save(self, path):

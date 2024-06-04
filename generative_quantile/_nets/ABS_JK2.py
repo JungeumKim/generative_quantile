@@ -77,7 +77,7 @@ class Critic(nn.Module):
 class ABS():
 
     def __init__(self, simulator, x_dim, theta_dim, ss_dim,
-                 device="cuda",epochs=1000, batch_size = 200, seed=1234, *args, **kwargs):
+                 device="cuda",epoch=1000, batch_size = 200, seed=1234, *args, **kwargs):
 
 
         self.generator = Generator(d_hidden = [128,128,128],
@@ -97,7 +97,7 @@ class ABS():
         self.generator.to(device), self.critic.to(device)
         self.simulator = simulator
         self.device = device
-        self.epochs = epochs
+        self.epoch = epoch
         self.batch_size = batch_size
 
     def train(self, critic_gp_factor = 5,
@@ -117,7 +117,7 @@ class ABS():
 
 
 
-        for epoch in range(self.epochs):
+        for epoch in range(self.epoch):
             print(f"Epoch {epoch}")
             opt_generator = optim.Adam(generator.parameters(), lr=generator_lr*(0.99**epoch))
             opt_critic = optim.Adam(critic.parameters(), lr=critic_lr*(0.99**epoch))
@@ -176,7 +176,7 @@ class ABS():
         X = X.float().view(1, -1).repeat(sample_size, 1)
         X = X.to(self.device)
         with torch.no_grad():
-            return self.generator(X)
+            return self.generator(X).to("cpu")
 
 
     def save(self, path):
