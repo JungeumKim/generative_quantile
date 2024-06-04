@@ -173,7 +173,7 @@ class ABS():
                 local_start_time = time()
 
     def sampler(self, X, sample_size):
-        X = X.float().view(1, -1).repeat(sample_size, 1)
+        X = torch.from_numpy(X).float().view(1, -1).repeat(sample_size, 1)
         X = X.to(self.device)
         with torch.no_grad():
             return self.generator(X).to("cpu")
