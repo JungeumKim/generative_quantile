@@ -32,13 +32,13 @@ class AutoNet(nn.Module):
 
 
 class AutoReg():
-    def __init__(self, simulator, epochs=1000, batch_size = 200, n_iter=100, device="cuda", x_dim=2, theta_dim = 2,
+    def __init__(self, simulator, epoch=150, batch_size = 200, n_iter=100, device="cuda", x_dim=2, theta_dim = 2,
                  leaky=0.1, factor=64, n_layers=2, seed=1234, lr=0.01, *args, **kwargs):
         self.net = AutoNet(device=device, x_dim=x_dim, theta_dim = theta_dim,
                             leaky=leaky, factor=factor, n_layers=n_layers, seed=seed)
         self.lr = lr
         self.simulator = simulator
-        self.epochs=epochs
+        self.epoch=epoch
         self.batch_size=batch_size
         self.n_iter=n_iter
         self.np_random = np.random.RandomState(seed)
@@ -46,7 +46,7 @@ class AutoReg():
         self.theta_dim = theta_dim
         
     def train(self):
-        for epoch in range(1, self.epochs +1):
+        for epoch in range(1, self.epoch +1):
             print(f"Epoch {epoch}")
             optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
             running_loss = 0.0

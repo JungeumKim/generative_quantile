@@ -147,7 +147,7 @@ class ConditionalConvexQuantile(nn.Module):
 class BayesQ():
 
     def __init__(self, simulator, device="cuda",
-                 epochs=1000, batch_size = 200,
+                 epoch=1000, batch_size = 200,
                  seed = 1234, parallel=False, lr =0.01,
                  n_iter=1000, theta_dim = 2,x_dim=2, f1_dim=1,f2_dim=1, f_manual=None, *args, **kwargs):
 
@@ -167,14 +167,14 @@ class BayesQ():
 
         self.simulator = simulator
         self.device = device
-        self.epochs = epochs
+        self.epoch = epoch
         self.batch_size = batch_size
         self.theta_dim = theta_dim
         self.lr = lr
         self.n_iter = n_iter
 
     def train(self):
-        for epoch in range(1, self.epochs +1):
+        for epoch in range(1, self.epoch +1):
             print(f"Epoch {epoch}")
             optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
             running_loss = 0.0
