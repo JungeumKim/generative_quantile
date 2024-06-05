@@ -7,18 +7,22 @@ def get_layer(in_d, out_d, lip=False):
 
 class MLP(nn.Module):
     def __init__(self, device="cuda", dim=2, z_dim=1,
-                 leaky=0.1, factor=64, n_layers=2, lip=False):
+                 leaky=0.1, factor=64, n_layers=2, lip=False,dropout=0):
         super().__init__()
         self.dim = dim
         self.n_layers = n_layers
         self.non_linear = nn.LeakyReLU(leaky) if leaky > 0 else nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
 
         # First layer
-        self.layers = nn.ModuleList([get_layer(dim, factor, lip=lip)])
-
-        # Middle layers
-        for _ in range(n_layers):
-            self.layers.append(get_layer(factor, factor, lip=lip))
+        if dropout==0:
+            self.layers = nn.ModuleList([get_layer(dim, factor, lip=lip)])
+            for _ in range(n_layers):
+                self.layers.append(get_layer(factor, factor, lip=lip))
+        else:
+            self.layers = nn.ModuleList([self.dropout(get_layer(dim, factor, lip=lip))])
+            for _ in range(n_layers):
+                self.layers.append(self.dropout(get_layer(factor, factor, lip=lip)))
 
         # Last layer
         self.layers.append(get_layer(factor, z_dim,lip=lip))
