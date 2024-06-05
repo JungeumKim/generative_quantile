@@ -15,14 +15,9 @@ class MLP(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         # First layer
-        if dropout==0:
-            self.layers = nn.ModuleList([get_layer(dim, factor, lip=lip)])
-            for _ in range(n_layers):
-                self.layers.append(get_layer(factor, factor, lip=lip))
-        else:
-            self.layers = nn.ModuleList([self.dropout(get_layer(dim, factor, lip=lip))])
-            for _ in range(n_layers):
-                self.layers.append(self.dropout(get_layer(factor, factor, lip=lip)))
+        self.layers = nn.ModuleList([get_layer(dim, factor, lip=lip)])
+        for _ in range(n_layers):
+            self.layers.append(get_layer(factor, factor, lip=lip))
 
         # Last layer
         self.layers.append(get_layer(factor, z_dim,lip=lip))
@@ -33,8 +28,8 @@ class MLP(nn.Module):
     def forward(self, x):
         h = x
         for i, layer in enumerate(self.layers):
-            h = layer(h)
+            h = self.dropout(layer(h))
             if i < len(self.layers) - 1:  # Apply non-linearity on all but last layer
-                h = self.non_linear(h)
+                h = self.dropout(self.non_linear(h))
         return h
 

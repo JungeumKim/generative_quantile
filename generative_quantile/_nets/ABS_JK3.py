@@ -21,15 +21,15 @@ from time import time
 class Generator(nn.Module):
 
     def __init__(self, x_dim = 2, z_dim =3, cond_dim=2,dropout = 0.1, leaky=0.1,
-                 n_layers=3, factor=62):
+                 n_layers=3, factor=64,device="cuda"):
         super().__init__()
         self.d_noise = z_dim
         self.x_dim = x_dim
         self.d_cond = cond_dim
         input_dim = self.d_noise + self.d_cond
+        self.device=device
         self.model = MLP(device=self.device, dim=input_dim, z_dim=x_dim, leaky=leaky,
                          factor=factor, n_layers=n_layers,dropout=dropout)
-        self.dropout = nn.Dropout(dropout)
 
     def forward(self, context, noise=None):
         if noise is None:
@@ -40,7 +40,7 @@ class Generator(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, device="cuda", input_dim=2, cond_dim=4, dropout=0,
-                 n_layers=3,factor=62, leaky=0.1):
+                 n_layers=3,factor=64, leaky=0.1):
         super().__init__()
         self.device = device
 
@@ -74,18 +74,18 @@ class ABS():
                  device="cuda",epoch=1000, batch_size = 200, seed=1234, *args, **kwargs):
 
 
-        self.generator = Generator(d_hidden = [128,128,128],
+        self.generator = Generator(
                                    x_dim = theta_dim,
                                    z_dim =ss_dim,
                                    cond_dim=x_dim,
-                                   dropout = 0.1,
-                                   activation = "relu")
+                                   dropout = 0.1)
+                                  
 
-        self.critic = Critic(activation = "relu",
+        self.critic = Critic(
                              dropout = 0,
                              input_dim=theta_dim,
-                             d_cond = x_dim,
-                             d_hidden = [128,128,128])
+                             cond_dim = x_dim)
+                            
 
         self.np_random = np.random.RandomState(seed)
         self.generator.to(device), self.critic.to(device)

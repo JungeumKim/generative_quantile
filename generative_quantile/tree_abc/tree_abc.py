@@ -237,7 +237,10 @@ class TreeABC:
             thlp = theta_now[discr_now < self.epsilon_sch[self.c_eps]][-bsz:]
             wlp = imports_now[discr_now < self.epsilon_sch[self.c_eps]][-bsz:]
             wlp = wlp / np.sum(wlp)
-            plp_inds = np.random.choice(bsz, bsz, replace=True, p=wlp)
+            try:
+                plp_inds = np.random.choice(bsz, bsz, replace=True, p=wlp)
+            except:
+                set_trace()
             self.posteriors.append(thlp[plp_inds])
             self.extras.append(elp[plp_inds])
             self.tvalues.append(t)
