@@ -273,7 +273,7 @@ class TreeABC:
         return thetas_[accepts_ == 1][is_indices]
 
 
-    def sampler(self, batch_size=100, n_proposal=5000):
+    def sampler(self, batch_size=100, n_proposal=10000):
 
         eps = self.epsilon_sch[self.c_eps]
 
@@ -282,10 +282,12 @@ class TreeABC:
         acc_idx = discr<eps
 
         theta_now = thetas[acc_idx]
+
         q = self.TP.density(theta_now).reshape(-1)
         imports_now = self.prior_density(theta_now).reshape(-1)  / q # (n_proposal, ),  (n_proposal, ) -> (n_proposal, )
         #set_trace()
         # importance resampling
+        
         thlp = theta_now#[order][-batch_size:]
         wlp = imports_now#[order][-batch_size:]
         wlp = wlp / np.sum(wlp)
@@ -296,8 +298,8 @@ class TreeABC:
         thlp = theta_now[-batch_size:]
         wlp = imports_now[-batch_size:]
         wlp = wlp / np.sum(wlp)
-        plp_inds = np.random.choice(batch_size, batch_size, 
-                   replace=True, p=wlp)
+    
+        plp_inds = np.random.choice(len(wlp), batch_size, replace=True, p=wlp)
         '''
         #set_trace()
         #print(thlp[plp_inds])

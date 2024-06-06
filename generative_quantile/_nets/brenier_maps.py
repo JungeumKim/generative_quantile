@@ -198,14 +198,17 @@ class BayesQ():
                 running_loss += loss.item()
 
             print('%.5f' %(running_loss))
-
+            
     def sampler(self, X, sample_size=100,r=1):
 
         u = uniform_on_unit_ball(sample_size, self.theta_dim,
                                  np_random = self.np_random)
         u = torch.from_numpy(u).float().to(self.device)
-        X = torch.from_numpy(X).float().view(1, -1).repeat(sample_size, 1).to(self.device).unsqueeze(1)
+        X = torch.from_numpy(X).float().view(1, -1).repeat(sample_size, 1).to(self.device).unsqueeze(-1)
+        train_mode = self.net.train
+        self.net.eval() #eval: THE most important thing
         sample = self.net.grad(u*r, X)
+        if train_mode: self.net.train()
         return sample.detach().cpu()
 
     def save(self, path):
