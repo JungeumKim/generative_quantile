@@ -88,7 +88,7 @@ class DeepSets(nn.Module):
 class ConditionalConvexQuantile(nn.Module):
     def __init__(self, xdim, udim, f_manual = None,
                  f1dim=0, f2dim=0, factor=16, f1_layers=2,
-                 a_hid=512, a_layers=3, b_hid=512,b_layers=1,
+                 a_hid=512, a_layers=3, b_hid=512,b_layers=1, lstm_hidden_size=512, lstm_num_layers=1,
                  device="cuda"):
 
         super(ConditionalConvexQuantile, self).__init__()
@@ -112,8 +112,8 @@ class ConditionalConvexQuantile(nn.Module):
 
             if  self.f2dim>0:
                 self.f2 = BiRNN(input_size=xdim,
-                       hidden_size=512,
-                       num_layers=1,
+                       hidden_size=lstm_hidden_size,
+                       num_layers=lstm_num_layers,
                        xdim=self.f2dim)
             self.f = self.f_automatic
         else:
@@ -149,7 +149,8 @@ class BayesQ():
     def __init__(self, simulator, device="cuda",
                  epoch=1000, batch_size = 200,
                  seed = 1234, parallel=False, lr =0.01,
-                 n_iter=1000, theta_dim = 2,x_dim=2, f1_dim=1,f2_dim=1, f_manual=None, *args, **kwargs):
+                 n_iter=1000, theta_dim = 2,x_dim=2, f1_dim=1,f2_dim=1, f_manual=None,
+                 lstm_hidden_size=512, lstm_num_layers=1,*args, **kwargs):
 
         self.np_random = np.random.RandomState(seed)
         self.net = ConditionalConvexQuantile(xdim=x_dim,
@@ -157,6 +158,8 @@ class BayesQ():
                                     f1dim=f1_dim,
                                     f2dim=f2_dim,
                                     f_manual = f_manual,
+                                    lstm_hidden_size=lstm_hidden_size,
+                                    lstm_num_layers =lstm_num_layers,
                                     a_hid=512,
                                     a_layers=3,
                                     b_hid=512,
