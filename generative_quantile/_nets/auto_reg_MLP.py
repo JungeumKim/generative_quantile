@@ -70,8 +70,15 @@ class AutoNet(nn.Module):
 
 class AutoReg():
     def __init__(self, simulator, epoch=150, batch_size = 200, n_iter=100, device="cuda", x_dim=2, theta_dim = 2,
-                 leaky=0.1, factor=64, n_layers=2, seed=1234, lr=0.01, *args, **kwargs):
-        self.net = AutoNet(device=device, x_dim=x_dim, theta_dim = theta_dim,
+                 leaky=0.1, factor=64, n_layers=2, seed=1234, lr=0.01, ss_f = False, f1dim=2, f2dim=5, f1_layers=5,
+                 *args, **kwargs):
+        if ss_f:
+            self.net = AutoNet_ss(
+                            f1dim=f1dim, f2dim=f2dim, f1_layers =f1_layers,
+                            device=device, x_dim=x_dim, theta_dim = theta_dim,
+                            leaky=leaky, factor=factor, n_layers=n_layers, seed=seed)
+        else:
+            self.net = AutoNet(device=device, x_dim=x_dim, theta_dim = theta_dim,
                             leaky=leaky, factor=factor, n_layers=n_layers, seed=seed)
         self.lr = lr
         self.simulator = simulator

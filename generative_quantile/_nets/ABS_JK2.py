@@ -15,12 +15,50 @@ import torch.optim as optim
 import torch.nn.functional as F
 from time import time
 
+from _nets.brenier_maps import DeepSets,BiRNN
+
+
+
+class Auto_ss(nn.Module):
+    def __init__(self,  f1dim=2, f2dim=2, device="cuda", x_dim=2,
+                 factor=64, f1_layers =3,*args, **kwargs):
+        super().__init__()
+        self.f1dim = f1dim
+        self.f2dim= f2dim
+        if  self.f1dim>0:
+            self.f1 = DeepSets(dim_x=x_dim,
+                              dim_ss=self.f1dim,
+                              factor=factor, num_layers=f1_layers, device=device)
+        if  self.f2dim>0:
+            self.f2 = BiRNN(input_size=x_dim,
+                   hidden_size=512,
+                   num_layers=1,
+                   xdim=self.f2dim)
+
+        self.device=device
+        self.to(device)
+
+    def forward(self, x):
+        if self.f1dim>0 and  self.f2dim ==0:
+            return self.f1(x)
+        elif self.f1dim==0 and  self.f2dim >0:
+            return self.f2(x)
+        else:
+            x= torch.cat([self.f1(x),self.f2(x)], 1)
+            return x
+
+
 
 class Generator(nn.Module):
 
     def __init__(self, d_hidden = [128,128,128], x_dim = 2, z_dim =3, cond_dim=2,dropout = 0.1,
-                 activation = "relu"):
+                  activation = "relu", lower_bound=None, ss_f = False, f1dim=2,f2dim=2):
         super().__init__()
+        self.ss_f = ss_f
+        if ss_f:
+            self.ss_f = Auto_ss(f1dim=f1dim, f2dim=f2dim, x_dim=cond_dim)
+            cond_dim = f1dim + f2dim
+
         self.d_noise = z_dim
         self.x_dim =x_dim
         self.d_cond = cond_dim
@@ -29,7 +67,7 @@ class Generator(nn.Module):
         self.layers = nn.ModuleList([nn.Linear(i, o) for i, o in zip(d_in, d_out)])
         self.dropout = nn.Dropout(dropout)
         self.activation = F.relu if activation == "relu" else F.leaky_relu
-
+        self.lower_bound=lower_bound
 
     def forward(self, context, noise = None):
         # context: conditioning variable.
@@ -40,6 +78,10 @@ class Generator(nn.Module):
 
         for layer in self.layers:
                 x = self.dropout(self.activation(layer(x)))
+
+        if self.lower_bound is not None:
+            # it is only for the special case where the first element is known to be lowerbounded e.g., by 0.
+            x[:,0]  = x[:,0].clip(min=self.lower_bound)
         return x
 
 
@@ -77,7 +119,8 @@ class Critic(nn.Module):
 class ABS():
 
     def __init__(self, simulator, x_dim, theta_dim, ss_dim,
-                 device="cuda",epoch=1000, batch_size = 200, seed=1234, *args, **kwargs):
+                 device="cuda",epoch=1000, batch_size = 200, seed=1234, lower_bound=None,
+                 ss_f = False, f1dim=2,f2dim=2, *args, **kwargs):
 
 
         self.generator = Generator(d_hidden = [128,128,128],
@@ -85,7 +128,8 @@ class ABS():
                                    z_dim =ss_dim,
                                    cond_dim=x_dim,
                                    dropout = 0.1,
-                                   activation = "relu")
+                                   activation = "relu",
+                                   lower_bound=lower_bound, ss_f = ss_f, f1dim=f2dim,f2dim=f1dim)
 
         self.critic = Critic(activation = "relu",
                              dropout = 0,
