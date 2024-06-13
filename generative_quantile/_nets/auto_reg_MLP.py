@@ -106,11 +106,20 @@ class AutoReg():
 
             print('%.5f' %(running_loss))
 
-    def sampler(self, X, sample_size=100):
-        
-        X = torch.from_numpy(X).float().view(1, -1).repeat(sample_size, 1).to(self.device)
+    def sampler(self, X, sample_size=100, shaper=None):
+        if shaper is None:
+            X = torch.from_numpy(X).float().view(1, -1).repeat(sample_size, 1).to(self.device)
+        else:
+            X = shaper(X)
+        taus = self.np_random.rand(sample_size, self.theta_dim)
+        taus = torch.from_numpy(taus).float().to(self.device)
+        train_mode = self.net.train
+        self.net.eval() #eval: THE most important thing
+
         with torch.no_grad():
-            sample = self.net(X.to(self.device))
+            sample = self.net(X.to(self.device), taus)
+            
+        if train_mode: self.net.train()
         return sample.detach().cpu()
 
 
