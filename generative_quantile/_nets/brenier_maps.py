@@ -5,6 +5,8 @@ import torch.nn as nn
 from _nets.icnn import ICNN_LastInp_Quadratic
 from _nets.basic_nets import  MLP,MLP_batchnorm
 from _utils.breiner_util import uniform_on_unit_ball
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 
@@ -169,17 +171,13 @@ class ConditionalConvexQuantile(nn.Module):
 class BayesQ():
 
     def __init__(self, simulator,theta_dim,  x_dim, x_length,thresh = -10**5, device="cuda",
-                 
                  f1_dim=1,f2_dim=1, f_manual=None, ss_f = True,
-                 
                  lstm_hidden_size=512, lstm_num_layers=1,
-                 
                  epoch=1000, batch_size = 200,
                  seed = 1234, parallel=False, lr =0.01,
-                 n_iter=1000,  
+                 n_iter=1000, vis_every = 20,observed_data = None, true_post = None,
                  *args, **kwargs):
 
-            
         self.np_random = np.random.RandomState(seed)
         self.net = ConditionalConvexQuantile(xdim=x_dim,x_length=x_length,
                                     udim=theta_dim,
@@ -193,11 +191,12 @@ class BayesQ():
                                     a_layers=3,
                                     b_hid=512,
                                     b_layers=3, device="cpu")
+
         if parallel and (torch.cuda.device_count() > 1):
             self.net = torch.nn.DataParallel(self.net)
             print("data parallel")
-        self.net.to(device)
 
+        self.net.to(device)
         self.simulator = simulator
         self.device = device
         self.epoch = epoch
@@ -206,9 +205,16 @@ class BayesQ():
         self.lr = lr
         self.n_iter = n_iter
         self.thresh = thresh
+        self.current_epoch = 0
+        self.vis_every= vis_every
+        self.observed_data =observed_data
+        self.true_post = true_post
+        if true_post is None:
+            self.vis_every = 999999
 
     def train(self):
         for epoch in range(1, self.epoch +1):
+            self.current_epoch = epoch
             print(f"Epoch {epoch}")
             optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
             running_loss = 0.0
@@ -236,6 +242,10 @@ class BayesQ():
                         p.data = p.data.clip(min=self.thresh)
         
             print('%.5f' %(running_loss))
+
+            if epoch % self.vis_every ==0:
+                self.vis()
+
             
     def sampler(self, X, sample_size=100,r=1,shaper = None):
 
@@ -251,6 +261,18 @@ class BayesQ():
         sample = self.net.grad(u*r, X)
         if train_mode: self.net.train()
         return sample.detach().cpu()
+
+    def vis(self,n_test=300):
+
+        sample = self.sampler(self.observed_data,n_test)
+
+        n_col = 1
+        fig,axis = plt.subplots(1,n_col, figsize=(4*n_col,4))#, sharex=True, sharey=True)
+        ax = axis
+        ax.set_title(f"Epoch {self.current_epoch}")
+        sns.kdeplot(x=sample[:,0], y=sample[:,1], ax=ax, fill=False)
+        sns.kdeplot(x=self.true_post[:,0], y=self.true_post[:,0], ax=ax, fill=True)
+        plt.show()
 
     def save(self, path):
         if isinstance(self.net, torch.nn.DataParallel):
