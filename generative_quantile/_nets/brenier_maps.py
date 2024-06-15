@@ -174,9 +174,9 @@ class BayesQ():
     def __init__(self, simulator,theta_dim,  x_dim, x_length,thresh = -10**5, device="cuda",
                  f1_dim=1,f2_dim=1, f_manual=None, ss_f = True,
                  lstm_hidden_size=512, lstm_num_layers=1,
-                 epoch=1000, batch_size = 200,
+                 epoch=150, batch_size = 200,
                  seed = 1234, parallel=False, lr =0.01,
-                 n_iter=1000, vis_every = 20,observed_data = None, true_post = None,
+                 n_iter=100, vis_every = 20,observed_data = None, true_post = None,
                  *args, **kwargs):
 
         self.np_random = np.random.RandomState(seed)
@@ -272,8 +272,6 @@ class BayesQ():
         return sample.detach().cpu()
 
     def vis(self,sample):
-
-
 
         n_col = 2
         fig,axis = plt.subplots(1,n_col, figsize=(4*n_col,4))#, sharex=True, sharey=True)

@@ -6,6 +6,11 @@ import torch
 import numpy as np
 from _nets.brenier_maps import DeepSets,BiRNN
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+from _utils.distances import compute_mmd,compute_dtm
+import pandas as pd
+
 
 class AutoNet_manual(nn.Module):
     def __init__(self,  f_manual, f1_dim=2, f2_dim=2, device="cuda", x_dim=2, theta_dim = 2,
@@ -92,8 +97,8 @@ class AutoReg():
                  
                  leaky=0.1, factor=64, n_layers=2,
                  
-                 epoch=150, batch_size = 200, n_iter=100, device="cuda", 
-                  seed=1234, lr=0.01, 
+                 epoch=150, batch_size = 200, n_iter=100, device="cuda",
+                  seed=1234, lr=0.01, vis_every = 20,observed_data = None, true_post = None,
                  *args, **kwargs):
 
         self.ss_f = ss_f
@@ -122,7 +127,14 @@ class AutoReg():
         self.device=device
         self.theta_dim = theta_dim
         self.x_dim = x_dim
-        self.x_length = x_length 
+        self.x_length = x_length
+
+        self.vis_every= vis_every
+        self.observed_data =observed_data
+        self.true_post = true_post
+        if true_post is None:
+            self.vis_every = 999999
+        self.current_epoch = 0
         
         if parallel and (torch.cuda.device_count() > 1):
             self.net = torch.nn.DataParallel(self.net)
@@ -130,7 +142,10 @@ class AutoReg():
         self.net.to(device)
         
     def train(self):
+
+        self.log = []
         for epoch in range(1, self.epoch +1):
+            self.current_epoch = epoch
             print(f"Epoch {epoch}")
             optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
             running_loss = 0.0
@@ -154,7 +169,16 @@ class AutoReg():
                 optimizer.step()
                 running_loss += loss.item()
 
-            print('%.5f' %(running_loss))
+            loss_cum = running_loss/self.n_iter
+            sample = self.sampler(self.observed_data,300)
+            mmd = compute_mmd(sample, self.true_post) if self.true_post is not None else 0
+            self.log.append({"loss":loss_cum, "mmd": mmd})
+
+            if epoch % self.vis_every ==0:
+                try:
+                    self.vis(sample)
+                except:
+                    print("some vis err")
 
     def sampler(self, X, sample_size=100, shaper=None):
         if shaper is None:
@@ -172,6 +196,19 @@ class AutoReg():
         if train_mode: self.net.train()
         return sample.detach().cpu()
 
+    def vis(self,sample):
+
+        n_col = 2
+        fig,axis = plt.subplots(1,n_col, figsize=(4*n_col,4))#, sharex=True, sharey=True)
+        ax = axis[0]
+        df = pd.DataFrame(self.log)
+        df.plot(ax = ax)
+
+        ax = axis[1]
+        ax.set_title(f"Epoch {self.current_epoch}")
+        sns.kdeplot(x=sample[:,0], y=sample[:,1], ax=ax, fill=False)
+        sns.kdeplot(x=self.true_post[:,0], y=self.true_post[:,1], ax=ax, fill=True)
+        plt.show()
 
     def save(self, path):
         if isinstance(self.net, torch.nn.DataParallel):
