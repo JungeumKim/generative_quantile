@@ -214,9 +214,11 @@ class BayesQ():
             self.vis_every = 999999
 
     def train(self):
+    
+        self.log = []
         for epoch in range(1, self.epoch +1):
             self.current_epoch = epoch
-            print(f"Epoch {epoch}")
+            #print(f"Epoch {epoch}")
             optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
             running_loss = 0.0
             for idx in range(self.n_iter):
@@ -245,7 +247,7 @@ class BayesQ():
             loss_cum = running_loss/self.n_iter
             sample = self.sampler(self.observed_data,300)
             mmd = compute_mmd(sample, self.true_post) if self.true_post is not None else 0
-            self.log.update({"loss":loss_cum, "mmd": mmd})
+            self.log.append({"loss":loss_cum, "mmd": mmd})
 
             if epoch % self.vis_every ==0:
                 try:
@@ -275,11 +277,11 @@ class BayesQ():
 
         n_col = 2
         fig,axis = plt.subplots(1,n_col, figsize=(4*n_col,4))#, sharex=True, sharey=True)
-        ax = axis[0,0]
+        ax = axis[0]
         df = pd.DataFrame(self.log)
-        df.plot(axis = ax)
+        df.plot(ax = ax)
 
-        ax = axis[0,1]
+        ax = axis[1]
         ax.set_title(f"Epoch {self.current_epoch}")
         sns.kdeplot(x=sample[:,0], y=sample[:,1], ax=ax, fill=False)
         sns.kdeplot(x=self.true_post[:,0], y=self.true_post[:,1], ax=ax, fill=True)
