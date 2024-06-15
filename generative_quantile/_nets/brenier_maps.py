@@ -244,7 +244,10 @@ class BayesQ():
             print('%.5f' %(running_loss))
 
             if epoch % self.vis_every ==0:
-                self.vis()
+                try:
+                    self.vis()
+                except:
+                    print("some vis err")
 
             
     def sampler(self, X, sample_size=100,r=1,shaper = None):
@@ -271,7 +274,7 @@ class BayesQ():
         ax = axis
         ax.set_title(f"Epoch {self.current_epoch}")
         sns.kdeplot(x=sample[:,0], y=sample[:,1], ax=ax, fill=False)
-        sns.kdeplot(x=self.true_post[:,0], y=self.true_post[:,0], ax=ax, fill=True)
+        sns.kdeplot(x=self.true_post[:,0], y=self.true_post[:,1], ax=ax, fill=True)
         plt.show()
 
     def save(self, path):
