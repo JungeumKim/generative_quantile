@@ -3,8 +3,9 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from _nets.icnn import ICNN_LastInp_Quadratic
-from _nets.basic_nets import  MLP
+from _nets.basic_nets import  MLP,MLP_batchnorm
 from _utils.breiner_util import uniform_on_unit_ball
+
 
 
 from IPython.core.debugger import set_trace
@@ -86,8 +87,8 @@ class DeepSets(nn.Module):
         return out
 
 class ConditionalConvexQuantile(nn.Module):
-    def __init__(self, xdim, udim, f_manual = None,
-                 f1dim=0, f2dim=0, factor=16, f1_layers=2,
+    def __init__(self, xdim, udim, x_length, f_manual = None, 
+                 f1dim=0, f2dim=0, factor=16, f1_layers=2,ss_f = True,
                  a_hid=512, a_layers=3, b_hid=512,b_layers=1, lstm_hidden_size=512, lstm_num_layers=1,
                  device="cuda"):
 
@@ -104,7 +105,17 @@ class ConditionalConvexQuantile(nn.Module):
                                     activation='celu',
                                     num_layer=b_layers,
                                     out_dim=self.f1dim+self.f2dim)
-        if f_manual is None:
+        
+        if f_manual is not None:
+            print("manual feature map")
+            self.batch = nn.BatchNorm1d(f1dim+f2dim)
+
+            def f (x): 
+                return self.batch(f_manual(x))
+            self.f = f
+            
+        elif ss_f: 
+            print("deepset and lstm feature map")
             if  self.f1dim>0:
                 self.f1 = DeepSets(dim_x=xdim,
                               dim_ss=self.f1dim,
@@ -115,10 +126,21 @@ class ConditionalConvexQuantile(nn.Module):
                        hidden_size=lstm_hidden_size,
                        num_layers=lstm_num_layers,
                        xdim=self.f2dim)
+                
             self.f = self.f_automatic
+            
         else:
-            self.f = f_manual
+            print("mlp feature map")
+            self.mlp =  MLP_batchnorm(device=device,
+                         dim = xdim * x_length, z_dim = f1dim+f2dim, 
+                         dropout=0.5, 
+                         factor=16, n_layers=2,positive=True)
+            def f (x): 
+                #set_trace()
+                return self.mlp(x.view(-1, xdim * x_length))
+            self.f = f
 
+            
         self.device =device
         self.to(device)
 
@@ -146,15 +168,22 @@ class ConditionalConvexQuantile(nn.Module):
 
 class BayesQ():
 
-    def __init__(self, simulator, device="cuda",
+    def __init__(self, simulator,theta_dim,  x_dim, x_length,thresh = -10**5, device="cuda",
+                 
+                 f1_dim=1,f2_dim=1, f_manual=None, ss_f = True,
+                 
+                 lstm_hidden_size=512, lstm_num_layers=1,
+                 
                  epoch=1000, batch_size = 200,
                  seed = 1234, parallel=False, lr =0.01,
-                 n_iter=1000, theta_dim = 2,x_dim=2, f1_dim=1,f2_dim=1, f_manual=None,
-                 lstm_hidden_size=512, lstm_num_layers=1,*args, **kwargs):
+                 n_iter=1000,  
+                 *args, **kwargs):
 
+            
         self.np_random = np.random.RandomState(seed)
-        self.net = ConditionalConvexQuantile(xdim=x_dim,
+        self.net = ConditionalConvexQuantile(xdim=x_dim,x_length=x_length,
                                     udim=theta_dim,
+                                    ss_f = ss_f,
                                     f1dim=f1_dim,
                                     f2dim=f2_dim,
                                     f_manual = f_manual,
@@ -166,6 +195,7 @@ class BayesQ():
                                     b_layers=3, device="cpu")
         if parallel and (torch.cuda.device_count() > 1):
             self.net = torch.nn.DataParallel(self.net)
+            print("data parallel")
         self.net.to(device)
 
         self.simulator = simulator
@@ -175,6 +205,7 @@ class BayesQ():
         self.theta_dim = theta_dim
         self.lr = lr
         self.n_iter = n_iter
+        self.thresh = thresh
 
     def train(self):
         for epoch in range(1, self.epoch +1):
@@ -200,6 +231,10 @@ class BayesQ():
                 optimizer.step()
                 running_loss += loss.item()
 
+                for p in list(self.net.parameters()):
+                    if hasattr(p, 'be_positive'):
+                        p.data = p.data.clip(min=self.thresh)
+        
             print('%.5f' %(running_loss))
             
     def sampler(self, X, sample_size=100,r=1,shaper = None):

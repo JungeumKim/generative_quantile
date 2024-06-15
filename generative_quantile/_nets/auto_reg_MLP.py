@@ -7,32 +7,50 @@ import numpy as np
 from _nets.brenier_maps import DeepSets,BiRNN
 
 
-class AutoNet_ss(nn.Module):
-    def __init__(self,  f1dim=2, f2dim=2, device="cuda", x_dim=2, theta_dim = 2,
+class AutoNet_manual(nn.Module):
+    def __init__(self,  f_manual, f1_dim=2, f2_dim=2, device="cuda", x_dim=2, theta_dim = 2,
                  leaky=0.1, factor=64, n_layers=2, seed=1234,f1_layers =3,*args, **kwargs):
         super().__init__()
-        self.f1dim = f1dim
-        self.f2dim= f2dim
-        if  self.f1dim>0:
+        
+        self.batch = nn.BatchNorm1d(f1_dim+f2_dim)
+        self.f_manual = f_manual
+           
+        self.auto_net = AutoNet(device="cuda", x_dim=f1_dim+f2_dim, theta_dim = theta_dim,
+                                leaky=leaky, factor=factor, n_layers=n_layers, seed=seed)
+        self.device=device
+        self.to(device)
+
+    def forward(self, X,taus):
+
+        fX = self.batch(self.f_manual(X))
+        return self.auto_net(fX,taus)
+    
+class AutoNet_ss(nn.Module):
+    def __init__(self,  f1_dim=2, f2_dim=2, device="cuda", x_dim=2, theta_dim = 2,
+                 leaky=0.1, factor=64, n_layers=2, seed=1234,f1_layers =3,*args, **kwargs):
+        super().__init__()
+        self.f1_dim = f1_dim
+        self.f2_dim= f2_dim
+        if  self.f1_dim>0:
             self.f1 = DeepSets(dim_x=x_dim,
-                              dim_ss=self.f1dim,
+                              dim_ss=self.f1_dim,
                               factor=factor, num_layers=f1_layers, device=device)
-        if  self.f2dim>0:
+        if  self.f2_dim>0:
             self.f2 = BiRNN(input_size=x_dim,
                    hidden_size=512,
                    num_layers=1,
-                   xdim=self.f2dim)
+                   xdim=self.f2_dim)
 
         self.f = self.f_automatic
-        self.auto_net = AutoNet(device="cuda", x_dim=f1dim+f2dim, theta_dim = theta_dim,
+        self.auto_net = AutoNet(device="cuda", x_dim=f1_dim+f2_dim, theta_dim = theta_dim,
                                 leaky=leaky, factor=factor, n_layers=n_layers, seed=seed)
         self.device=device
         self.to(device)
 
     def f_automatic(self, x):
-        if self.f1dim>0 and  self.f2dim ==0:
+        if self.f1_dim>0 and  self.f2_dim ==0:
             return self.f1(x)
-        elif self.f1dim==0 and  self.f2dim >0:
+        elif self.f1_dim==0 and  self.f2_dim >0:
             return self.f2(x)
         else:
             x= torch.cat([self.f1(x),self.f2(x)], 1)
@@ -69,16 +87,31 @@ class AutoNet(nn.Module):
         return torch.cat(theta_samples, dim=1)
 
 class AutoReg():
-    def __init__(self, simulator, epoch=150, batch_size = 200, n_iter=100, device="cuda", x_dim=2, theta_dim = 2,
-                 leaky=0.1, factor=64, n_layers=2, seed=1234, lr=0.01, ss_f = False, f1dim=2, f2dim=5, f1_layers=5,
+    def __init__(self, simulator, theta_dim,  x_dim, x_length,parallel=False,
+                 f_manual=False, ss_f = False, f1_dim=2, f2_dim=5, 
+                 
+                 leaky=0.1, factor=64, n_layers=2,
+                 
+                 epoch=150, batch_size = 200, n_iter=100, device="cuda", 
+                  seed=1234, lr=0.01, 
                  *args, **kwargs):
-        if ss_f:
+
+        self.ss_f = ss_f
+        if f_manual is not None: 
+            print("manual feature map")
+            self.net = AutoNet_manual(f_manual,f1_dim=f1_dim, f2_dim=f2_dim, 
+                            device=device, x_dim=x_dim, theta_dim = theta_dim,
+                            leaky=leaky, factor=factor, n_layers=n_layers, seed=seed )
+            
+        elif ss_f:
+            print("deepset feature map")
             self.net = AutoNet_ss(
-                            f1dim=f1dim, f2dim=f2dim, f1_layers =f1_layers,
+                            f1_dim=f1_dim, f2_dim=f2_dim, 
                             device=device, x_dim=x_dim, theta_dim = theta_dim,
                             leaky=leaky, factor=factor, n_layers=n_layers, seed=seed)
         else:
-            self.net = AutoNet(device=device, x_dim=x_dim, theta_dim = theta_dim,
+            print("mlp feature map")
+            self.net = AutoNet(device=device, x_dim=x_dim*x_length, theta_dim = theta_dim,
                             leaky=leaky, factor=factor, n_layers=n_layers, seed=seed)
         self.lr = lr
         self.simulator = simulator
@@ -88,6 +121,13 @@ class AutoReg():
         self.np_random = np.random.RandomState(seed)
         self.device=device
         self.theta_dim = theta_dim
+        self.x_dim = x_dim
+        self.x_length = x_length 
+        
+        if parallel and (torch.cuda.device_count() > 1):
+            self.net = torch.nn.DataParallel(self.net)
+            print("data parallel")
+        self.net.to(device)
         
     def train(self):
         for epoch in range(1, self.epoch +1):
@@ -100,7 +140,10 @@ class AutoReg():
                 Thetas, X = self.simulator(self.batch_size,
                                              np_random = self.np_random)
                 Thetas = Thetas.float().to(self.device)
+                
                 X = X.float().to(self.device)
+                if not self.ss_f:
+                    X = X.view(-1,self.x_dim*self.x_length)
                 taus = self.np_random.rand(self.batch_size, self.theta_dim)
                 taus = torch.from_numpy(taus).float().to(self.device)
 
@@ -131,15 +174,17 @@ class AutoReg():
 
 
     def save(self, path):
-        # Save the state dictionaries of generator and critic
-        torch.save(self.net.state_dict(), path)
+        if isinstance(self.net, torch.nn.DataParallel):
+            torch.save(self.net.module.state_dict(), path)
+        else:
+            torch.save(self.net .state_dict(), path)
 
     def load(self, path):
         self.net.load_state_dict(torch.load(path))
 
 
 class AutoReg_f(AutoReg):
-    def __init__(self, simulator, f1dim=2, f2dim=5, f1_layers=5,
+    def __init__(self, simulator, f1_dim=2, f2_dim=5, #f1_layers=5,
                  epoch=150, batch_size = 200, n_iter=100, device="cuda", x_dim=2, theta_dim = 2,
                  leaky=0.1, factor=64, n_layers=2, seed=1234, lr=0.01, *args, **kwargs):
 
@@ -148,7 +193,8 @@ class AutoReg_f(AutoReg):
                            leaky=leaky, factor=factor, n_layers=n_layers, seed=seed, lr=lr)
 
         self.net = AutoNet_ss(
-                            f1dim=f1dim, f2dim=f2dim, f1_layers =f1_layers,
+                            f1_dim=f1_dim, f2_dim=f2_dim, #f1_layers =f1_layers,
                             device=device, x_dim=x_dim, theta_dim = theta_dim,
                             leaky=leaky, factor=factor, n_layers=n_layers, seed=seed)
+
 

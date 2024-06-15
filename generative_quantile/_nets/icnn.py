@@ -1,17 +1,30 @@
 import torch
 import torch.nn as nn
+from IPython.core.debugger import set_trace
+from scipy.stats import truncnorm
+import numpy as np
+
+def truncated_normal(size, threshold=1):
+    values = truncnorm.rvs(-threshold, threshold, size=size)
+    return values
 
 ###################### Basic accessories setup ###############################
 
 
 class ConvexLinear(nn.Linear):
-    def __init__(self, *kargs, **kwargs):
+    def __init__(self,  *kargs, **kwargs):
         super(ConvexLinear, self).__init__(*kargs, **kwargs)
 
         if not hasattr(self.weight, 'be_positive'):
             self.weight.be_positive = 1.0
-
+            p =self.weight.data
+            #print("p1",p)
+            self.weight.data = torch.from_numpy(truncated_normal(p.shape, threshold=1./np.sqrt(p.shape[1] if len(p.shape)>1 else p.shape[0]))).float()
+            #print("p2",self.weight.data)
+        self.weight.data = self.weight.data.clip(min=-10**5)
+        
     def forward(self, input):
+        #set_trace()
         out = nn.functional.linear(input, self.weight, self.bias)
         return out
 
