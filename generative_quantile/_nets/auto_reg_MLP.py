@@ -13,7 +13,7 @@ import pandas as pd
 
 
 class AutoNet_manual(nn.Module):
-    def __init__(self,  f_manual, f1_dim=2, f2_dim=2, device="cuda", x_dim=2, theta_dim = 2,
+    def __init__(self,  f_manual, f1_dim=2, f2_dim=2, device="cuda", x_dim=2, theta_dim = 2,batchnorm=True,
                  leaky=0.1, factor=64, n_layers=2, seed=1234,f1_layers =3,*args, **kwargs):
         super().__init__()
         
@@ -24,10 +24,12 @@ class AutoNet_manual(nn.Module):
                                 leaky=leaky, factor=factor, n_layers=n_layers, seed=seed)
         self.device=device
         self.to(device)
-
+        self.batchnorm = batchnorm
     def forward(self, X,taus):
-
-        fX = self.batch(self.f_manual(X))
+        if self.batchnorm:
+            fX = self.batch(self.f_manual(X))
+        else:
+            fX = self.f_manual(X)
         return self.auto_net(fX,taus)
     
 class AutoNet_ss(nn.Module):
@@ -146,7 +148,6 @@ class AutoReg():
         self.log = []
         for epoch in range(1, self.epoch +1):
             self.current_epoch = epoch
-            print(f"Epoch {epoch}")
             optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
             running_loss = 0.0
             for idx in range(self.n_iter):
@@ -170,11 +171,12 @@ class AutoReg():
                 running_loss += loss.item()
 
             loss_cum = running_loss/self.n_iter
-            sample = self.sampler(self.observed_data,300)
+            sample = self.sampler(self.observed_data,300,shaper=lambda x: x)
             mmd = compute_mmd(sample, self.true_post) if self.true_post is not None else 0
             self.log.append({"loss":loss_cum, "mmd": mmd})
 
             if epoch % self.vis_every ==0:
+                print(f"Epoch {epoch}")
                 try:
                     self.vis(sample)
                 except:
@@ -191,6 +193,7 @@ class AutoReg():
         self.net.eval() #eval: THE most important thing
 
         with torch.no_grad():
+            #set_trace()
             sample = self.net(X.to(self.device), taus)
             
         if train_mode: self.net.train()
@@ -198,13 +201,16 @@ class AutoReg():
 
     def vis(self,sample):
 
-        n_col = 2
+        n_col = 3 
         fig,axis = plt.subplots(1,n_col, figsize=(4*n_col,4))#, sharex=True, sharey=True)
-        ax = axis[0]
         df = pd.DataFrame(self.log)
-        df.plot(ax = ax)
-
+        ax = axis[0]
+        df["loss"].plot(ax = ax)
         ax = axis[1]
+        df["mmd"].plot(ax = ax)
+
+
+        ax = axis[2]
         ax.set_title(f"Epoch {self.current_epoch}")
         sns.kdeplot(x=sample[:,0], y=sample[:,1], ax=ax, fill=False)
         sns.kdeplot(x=self.true_post[:,0], y=self.true_post[:,1], ax=ax, fill=True)
