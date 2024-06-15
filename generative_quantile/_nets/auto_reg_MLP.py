@@ -101,6 +101,7 @@ class AutoReg():
                  
                  epoch=150, batch_size = 200, n_iter=100, device="cuda",
                   seed=1234, lr=0.01, vis_every = 20,observed_data = None, true_post = None,
+                 true_params=None, Xs=None,posterior_sampler =None,
                  *args, **kwargs):
 
         self.ss_f = ss_f
@@ -134,6 +135,14 @@ class AutoReg():
         self.vis_every= vis_every
         self.observed_data =observed_data
         self.true_post = true_post
+        self.true_params=true_params
+        self.Xs=Xs
+        self.posterior_sampler = posterior_sampler
+        if (self.true_params is not None) and (self.Xs is not None) and (self.posterior_sampler is not None):
+            self.mmd_measuring=True
+        else:
+            self.mmd_measuring=False
+
         if true_post is None:
             self.vis_every = 999999
         self.current_epoch = 0
@@ -173,7 +182,8 @@ class AutoReg():
             loss_cum = running_loss/self.n_iter
             sample = self.sampler(self.observed_data,300,shaper=lambda x: x)
             mmd = compute_mmd(sample, self.true_post) if self.true_post is not None else 0
-            self.log.append({"loss":loss_cum, "mmd": mmd})
+            Emmd = self.mmd_val() if self.mmd_measuring else 0
+            self.log.append({"loss":loss_cum, "mmd": mmd, "Emmd":Emmd})
 
             if epoch % self.vis_every ==0:
                 print(f"Epoch {epoch}")
@@ -199,6 +209,17 @@ class AutoReg():
         if train_mode: self.net.train()
         return sample.detach().cpu()
 
+    def mmd_val(self):
+        mmds = []
+        for i in range(self.Xs.shape[0]):
+            true_param, observed_data = self.true_params[i],self.Xs[i]
+            sim_post_sample = self.sampler(observed_data,300)
+            theta, sigma_sq = self.posterior_sampler(X = observed_data)
+            true_post_sample = np.stack([theta,sigma_sq],1)
+            mmd_value = compute_mmd(sim_post_sample,true_post_sample)
+            mmds.append(mmd_value)
+        return np.mean(mmds)
+
     def vis(self,sample):
 
         n_col = 3 
@@ -207,10 +228,11 @@ class AutoReg():
         ax = axis[0]
         df["loss"].plot(ax = ax)
         ax = axis[1]
+        df["Emmd"].plot(ax = ax)
+        ax = axis[2]
         df["mmd"].plot(ax = ax)
 
-
-        ax = axis[2]
+        ax = axis[3]
         ax.set_title(f"Epoch {self.current_epoch}")
         sns.kdeplot(x=sample[:,0], y=sample[:,1], ax=ax, fill=False)
         sns.kdeplot(x=self.true_post[:,0], y=self.true_post[:,1], ax=ax, fill=True)
