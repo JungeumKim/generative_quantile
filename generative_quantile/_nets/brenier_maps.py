@@ -7,7 +7,8 @@ from _nets.basic_nets import  MLP,MLP_batchnorm
 from _utils.breiner_util import uniform_on_unit_ball
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+from _utils.distances import compute_mmd,compute_dtm
+import pandas as pd
 
 
 from IPython.core.debugger import set_trace
@@ -240,12 +241,15 @@ class BayesQ():
                 for p in list(self.net.parameters()):
                     if hasattr(p, 'be_positive'):
                         p.data = p.data.clip(min=self.thresh)
-        
-            print('%.5f' %(running_loss))
+
+            loss_cum = running_loss/self.n_iter
+            sample = self.sampler(self.observed_data,300)
+            mmd = compute_mmd(sample, self.true_post) if self.true_post is not None else 0
+            self.log.update({"loss":loss_cum, "mmd": mmd})
 
             if epoch % self.vis_every ==0:
                 try:
-                    self.vis()
+                    self.vis(sample)
                 except:
                     print("some vis err")
 
@@ -265,13 +269,17 @@ class BayesQ():
         if train_mode: self.net.train()
         return sample.detach().cpu()
 
-    def vis(self,n_test=300):
+    def vis(self,sample):
 
-        sample = self.sampler(self.observed_data,n_test)
 
-        n_col = 1
+
+        n_col = 2
         fig,axis = plt.subplots(1,n_col, figsize=(4*n_col,4))#, sharex=True, sharey=True)
-        ax = axis
+        ax = axis[0,0]
+        df = pd.DataFrame(self.log)
+        df.plot(axis = ax)
+
+        ax = axis[0,1]
         ax.set_title(f"Epoch {self.current_epoch}")
         sns.kdeplot(x=sample[:,0], y=sample[:,1], ax=ax, fill=False)
         sns.kdeplot(x=self.true_post[:,0], y=self.true_post[:,1], ax=ax, fill=True)
