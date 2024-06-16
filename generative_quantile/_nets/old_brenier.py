@@ -3,7 +3,7 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from _nets.icnn import ICNN_LastInp_Quadratic
-from _nets.basic_nets import  MLP,MLP_batchnorm
+from _nets.basic_nets import  MLP
 from _utils.breiner_util import uniform_on_unit_ball
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -60,20 +60,14 @@ class BiRNN(nn.Module):
         return out
 
 class DeepSets(nn.Module):
-    def __init__(self, dim_x, dim_ss, factor=16, 
-                 num_layers=2, device="cuda", 
-                 bn_last=True):
+    def __init__(self, dim_x, dim_ss, factor=16, num_layers=2, device="cuda", bn_last=True):
         super(DeepSets, self).__init__()
 
         self.common_feature_net = MLP(device=device,
                                       dim=dim_x,
                                       z_dim = dim_ss,
-                                      dropout=0,#.5,
-                                      #positive=True,
-                                      factor=64,n_layers=3) 
-        #important: should have an enough capacity
-        #important: therefore, drop out is bad because it decreases the feature capacity too much-!
-        #this self.common_feature_net has been found as the most important thing: when n_sample is increasing, we should have enough capacity for this. Probably because the generator should be a contraction for each conditional input. It may need to be a complex function.
+                                      factor=factor,
+                                      n_layers=num_layers)
 
         self.next_net = MLP(device=device,
                             dim=dim_ss,
@@ -89,16 +83,16 @@ class DeepSets(nn.Module):
     def forward(self, x):
         shape = x.shape
         assert len(shape)==3
-        phi = self.common_feature_net(x.view(-1,shape[-1])).view(x.shape[0],x.shape[1],-1).mean(1)
+        phi = self.common_feature_net(x.view(-1,shape[-1])).view(x.shape[0],x.shape[1],-1).sum(1)
         out = self.next_net(phi)
         if self.bn_last:
             return self.norm(out)
         return out
 
 class ConditionalConvexQuantile(nn.Module):
-    def __init__(self, xdim, udim, x_length, f_manual = None, 
-                 f1dim=0, f2dim=0, factor=16, f1_layers=2,ss_f = True,
-                 a_hid=512, a_layers=3, b_hid=512,b_layers=1, lstm_hidden_size=512, lstm_num_layers=1,
+    def __init__(self, xdim, udim, f_manual = None,
+                 f1dim=0, f2dim=0, factor=16, f1_layers=2,
+                 a_hid=512, a_layers=3, b_hid=512,b_layers=1,
                  device="cuda"):
 
         super(ConditionalConvexQuantile, self).__init__()
@@ -114,17 +108,7 @@ class ConditionalConvexQuantile(nn.Module):
                                     activation='celu',
                                     num_layer=b_layers,
                                     out_dim=self.f1dim+self.f2dim)
-        
-        if f_manual is not None:
-            print("manual feature map")
-            self.batch = nn.BatchNorm1d(f1dim+f2dim,momentum=1.0, affine=False)
-
-            def f (x): 
-                return self.batch(f_manual(x))
-            self.f = f
-            
-        elif ss_f: 
-            print("deepset and lstm feature map")
+        if f_manual is None:
             if  self.f1dim>0:
                 self.f1 = DeepSets(dim_x=xdim,
                               dim_ss=self.f1dim,
@@ -132,27 +116,13 @@ class ConditionalConvexQuantile(nn.Module):
 
             if  self.f2dim>0:
                 self.f2 = BiRNN(input_size=xdim,
-                       hidden_size=lstm_hidden_size,
-                       num_layers=lstm_num_layers,
+                       hidden_size=512,
+                       num_layers=1,
                        xdim=self.f2dim)
-                
             self.f = self.f_automatic
-            
         else:
-            self.batch = nn.BatchNorm1d(f1dim+f2dim,momentum=1.0, affine=False)
-            print("mlp feature map")
-            self.mlp =  MLP(device=device,
-                         dim = xdim * x_length, z_dim = f1dim+f2dim, 
-                         dropout=0,#IMPORTANT: dropout is bad. it reduces the capacity too much.
-                         #factor=16, n_layers=2,
-                         factor=64, n_layers=3,
-                         positive=False)
-            def f (x): 
-                #set_trace()
-                return self.batch(self.mlp(x.view(-1, xdim * x_length)))
-            self.f = f
+            self.f = f_manual
 
-            
         self.device =device
         self.to(device)
 
@@ -180,35 +150,27 @@ class ConditionalConvexQuantile(nn.Module):
 
 class BayesQ():
 
-    def __init__(self, simulator,theta_dim,  x_dim, x_length,
-                 thresh = -10**5, device="cuda",
+    def __init__(self,simulator,theta_dim,  x_dim, x_length,thresh = -10**5, device="cuda",
                  f1_dim=1,f2_dim=1, f_manual=None, ss_f = True,
                  lstm_hidden_size=512, lstm_num_layers=1,
                  epoch=150, batch_size = 200,
                  seed = 1234, parallel=False, lr =0.01,
-                 n_iter=100, vis_every = 20,observed_data = None, 
-                 true_post = None,
-                 true_params=None, Xs=None,posterior_sampler =None, do_vis=False,
+                 n_iter=100, vis_every = 20,observed_data = None, true_post = None,
+                 true_params=None, Xs=None,posterior_sampler =None,
                  *args, **kwargs):
 
         self.np_random = np.random.RandomState(seed)
-        self.net = ConditionalConvexQuantile(xdim=x_dim,x_length=x_length,
+        self.net = ConditionalConvexQuantile(xdim=x_dim,
                                     udim=theta_dim,
-                                    ss_f = ss_f,
                                     f1dim=f1_dim,
                                     f2dim=f2_dim,
                                     f_manual = f_manual,
-                                    lstm_hidden_size=lstm_hidden_size,
-                                    lstm_num_layers =lstm_num_layers,
                                     a_hid=512,
                                     a_layers=3,
                                     b_hid=512,
                                     b_layers=3, device="cpu")
-
         if parallel and (torch.cuda.device_count() > 1):
             self.net = torch.nn.DataParallel(self.net)
-            print("data parallel")
-
         self.net.to(device)
         self.simulator = simulator
         self.device = device
@@ -218,7 +180,6 @@ class BayesQ():
         self.lr = lr
         self.n_iter = n_iter
         self.thresh = thresh
-        self.do_vis = do_vis
         self.vis_every= vis_every
         self.observed_data =observed_data
         self.true_post = true_post
@@ -234,12 +195,13 @@ class BayesQ():
             self.vis_every = 999999
         self.current_epoch = 0
 
+
+        
     def train(self):
-    
         self.log = []
         for epoch in range(1, self.epoch +1):
             self.current_epoch = epoch
-            #print(f"Epoch {epoch}")
+            
             optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
             running_loss = 0.0
             for idx in range(self.n_iter):
@@ -255,31 +217,24 @@ class BayesQ():
                 u = torch.from_numpy(u).float().to(self.device)
 
                 optimizer.zero_grad()
-                #set_trace()
                 alpha, beta, fX= self.net(u, X)
                 loss = dual_JK(u, alpha, beta, Y=Thetas, X=fX)
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
-                
-                '''
-                for p in list(self.net.parameters()):
-                    if hasattr(p, 'be_positive'):
-                        p.data = p.data.clip(min=self.thresh)
-                '''
-            if self.do_vis:    
-                loss_cum = running_loss/self.n_iter
-                sample = self.sampler(self.observed_data,300,shaper=lambda x: x)
-                mmd = compute_mmd(sample, self.true_post) if self.true_post is not None else 0
-                (Emmd,Edtm) = self.mmd_val() if self.mmd_measuring else (0,0)
-                self.log.append({"loss":loss_cum, "mmd": mmd, "Emmd":Emmd, "Edtm":Edtm})
 
-                if epoch % self.vis_every ==0:
-                    try:
-                        self.vis(sample)
-                    except:
-                        print("some vis err")
-
+            loss_cum = running_loss/self.n_iter
+            sample = self.sampler(self.observed_data,300,shaper=lambda x: x)
+            mmd = compute_mmd(sample, self.true_post) if self.true_post is not None else 0
+            (Emmd,Edtm) = self.mmd_val() if self.mmd_measuring else (0,0)
+            self.log.append({"loss":loss_cum, "mmd": mmd, "Emmd":Emmd, "Edtm":Edtm})
+            
+            if epoch % self.vis_every ==0:
+                print(f"Epoch {epoch}")
+                try:
+                    self.vis(sample)
+                except:
+                    print("some vis err")
             
     def sampler(self, X, sample_size=100,r=1,shaper = None):
 
@@ -295,7 +250,6 @@ class BayesQ():
         sample = self.net.grad(u*r, X)
         if train_mode: self.net.train()
         return sample.detach().cpu()
-
     def mmd_val(self):
         mmds = []
         dtms = []
@@ -329,6 +283,7 @@ class BayesQ():
         
         plt.show()
 
+
     def save(self, path):
         if isinstance(self.net, torch.nn.DataParallel):
 
@@ -338,3 +293,5 @@ class BayesQ():
 
     def load(self, path):
         self.net.load_state_dict(torch.load(path))
+
+

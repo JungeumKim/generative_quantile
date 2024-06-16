@@ -95,7 +95,7 @@ class AutoNet(nn.Module):
 
 class AutoReg():
     def __init__(self, simulator, theta_dim,  x_dim, x_length,parallel=False,
-                 f_manual=False, ss_f = False, f1_dim=2, f2_dim=5, 
+                 f_manual=False, ss_f = False, f1_dim=2, f2_dim=5, do_vis=False,
                  
                  leaky=0.1, factor=64, n_layers=2,
                  
@@ -131,7 +131,7 @@ class AutoReg():
         self.theta_dim = theta_dim
         self.x_dim = x_dim
         self.x_length = x_length
-
+        self.do_vis = do_vis
         self.vis_every= vis_every
         self.observed_data =observed_data
         self.true_post = true_post
@@ -178,19 +178,20 @@ class AutoReg():
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
+                
+            if self.do_vis:
+                loss_cum = running_loss/self.n_iter
+                sample = self.sampler(self.observed_data,300,shaper=lambda x: x)
+                mmd = compute_mmd(sample, self.true_post) if self.true_post is not None else 0
+                (Emmd,Edtm) = self.mmd_val() if self.mmd_measuring else (0,0)
+                self.log.append({"loss":loss_cum, "mmd": mmd, "Emmd":Emmd, "Edtm":Edtm})
 
-            loss_cum = running_loss/self.n_iter
-            sample = self.sampler(self.observed_data,300,shaper=lambda x: x)
-            mmd = compute_mmd(sample, self.true_post) if self.true_post is not None else 0
-            Emmd = self.mmd_val() if self.mmd_measuring else 0
-            self.log.append({"loss":loss_cum, "mmd": mmd, "Emmd":Emmd})
-
-            if epoch % self.vis_every ==0:
-                print(f"Epoch {epoch}")
-                try:
-                    self.vis(sample)
-                except:
-                    print("some vis err")
+                if epoch % self.vis_every ==0:
+                    print(f"Epoch {epoch}")
+                    try:
+                        self.vis(sample)
+                    except:
+                        print("some vis err")
 
     def sampler(self, X, sample_size=100, shaper=None):
         if shaper is None:
@@ -203,7 +204,8 @@ class AutoReg():
         self.net.eval() #eval: THE most important thing
 
         with torch.no_grad():
-            #set_trace()
+            if not self.ss_f:
+                X = X.view(-1,self.x_dim*self.x_length)
             sample = self.net(X.to(self.device), taus)
             
         if train_mode: self.net.train()
@@ -211,28 +213,37 @@ class AutoReg():
 
     def mmd_val(self):
         mmds = []
+        dtms = []
         for i in range(self.Xs.shape[0]):
             true_param, observed_data = self.true_params[i],self.Xs[i]
             sim_post_sample = self.sampler(observed_data,300)
             theta, sigma_sq = self.posterior_sampler(X = observed_data)
             true_post_sample = np.stack([theta,sigma_sq],1)
             mmd_value = compute_mmd(sim_post_sample,true_post_sample)
+            dtm_value = (((true_param-sim_post_sample.numpy())**2).sum(1)**0.5).mean()
             mmds.append(mmd_value)
-        return np.mean(mmds)
+            dtms.append(dtm_value)
+        return np.mean(mmds),np.mean(dtms)
 
     def vis(self,sample):
 
-        n_col = 3 
+        n_col = 5
         fig,axis = plt.subplots(1,n_col, figsize=(4*n_col,4))#, sharex=True, sharey=True)
         df = pd.DataFrame(self.log)
         ax = axis[0]
         df["loss"].plot(ax = ax)
+        ax.set_title("loss")
         ax = axis[1]
         df["Emmd"].plot(ax = ax)
+        ax.set_title("Emmd")
         ax = axis[2]
-        df["mmd"].plot(ax = ax)
+        df["Edtm"].plot(ax = ax)
+        ax.set_title("Edtm")
 
         ax = axis[3]
+        df["mmd"].plot(ax = ax)
+        ax.set_title("mmd")
+        ax = axis[4]
         ax.set_title(f"Epoch {self.current_epoch}")
         sns.kdeplot(x=sample[:,0], y=sample[:,1], ax=ax, fill=False)
         sns.kdeplot(x=self.true_post[:,0], y=self.true_post[:,1], ax=ax, fill=True)
