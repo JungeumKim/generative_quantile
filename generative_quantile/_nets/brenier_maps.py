@@ -238,8 +238,9 @@ class BayesQ():
     
         self.log = []
         for epoch in range(1, self.epoch +1):
+
             self.current_epoch = epoch
-            #print(f"Epoch {epoch}")
+            print(f"Epoch {epoch}")
             optimizer = optim.Adam(self.net.parameters(), lr=self.lr*(0.99**epoch))
             running_loss = 0.0
             for idx in range(self.n_iter):
