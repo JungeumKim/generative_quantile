@@ -178,7 +178,7 @@ class AutoReg():
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
-                
+            self.loss_cum   = running_loss/self.n_iter
             if self.do_vis:
                 loss_cum = running_loss/self.n_iter
                 sample = self.sampler(self.observed_data,300,shaper=lambda x: x)

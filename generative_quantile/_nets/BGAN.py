@@ -74,17 +74,15 @@ class Critic(nn.Module):
         return penalty
 
 
-class ABS():
+class BGAN():
 
-    def __init__(self, simulator, 
-                 theta_dim,   
-                 x_dim, 
-                 x_length,
-                 device="cuda",epoch=1000, batch_size = 200, 
+    def __init__(self, simulator, theta_dim, x_dim, x_length,
+                 device="cuda",epoch=300, batch_size = 200, d_hidden=128,
+                 critic_lr=0.001, generator_lr = 0.001,
                  seed=1234, *args, **kwargs):
 
 
-        self.generator = Generator(d_hidden = [128,128,128],
+        self.generator = Generator(d_hidden = [d_hidden,d_hidden,d_hidden],
                                    x_dim = theta_dim,
                                    z_dim = theta_dim,
                                    cond_dim=x_dim*x_length,
@@ -95,7 +93,7 @@ class ABS():
                              dropout = 0,
                              input_dim=theta_dim,
                              d_cond = x_dim*x_length,
-                             d_hidden = [128,128,128])
+                             d_hidden = [d_hidden,d_hidden,d_hidden])
 
         self.np_random = np.random.RandomState(seed)
         self.generator.to(device), self.critic.to(device)
@@ -105,28 +103,20 @@ class ABS():
         self.batch_size = batch_size
         self.x_dim=x_dim
         self.x_length=x_length
+        self.critic_lr = critic_lr
+        self.generator_lr = generator_lr
 
-    def train(self, critic_gp_factor = 5,
-              critic_lr = 0.01,
+    def train(self, 
+              critic_gp_factor = 5,
               critic_steps = 15,
-              generator_lr = 0.01,
-              print_every=20,
-              n_iter=1000,
-              test_iter=10):
-        generator = self.generator
-        critic = self.critic
-        simulator = self.simulator
-        # setup training objects
-        start_time = time()
-        local_start_time = time()
-        step = 1
-
-
-
-        for epoch in range(self.epoch):
+              n_iter=1000, start_epoch=1, end_epoch=None):
+        
+        if end_epoch==None: end_epoch = self.epoch
+            
+        for epoch in range(start_epoch, end_epoch+1):
             print(f"Epoch {epoch}")
-            opt_generator = optim.Adam(generator.parameters(), lr=generator_lr*(0.99**epoch))
-            opt_critic = optim.Adam(critic.parameters(), lr=critic_lr*(0.99**epoch))
+            opt_generator = optim.Adam(self.generator.parameters(), lr=self.generator_lr*(0.99**epoch))
+            opt_critic = optim.Adam(self.critic.parameters(), lr=self.critic_lr*(0.99**epoch))
 
             # train loop
             WD_train, WD_test= 0, 0
@@ -134,21 +124,22 @@ class ABS():
             critic_update = True
 
             for iter in range(n_iter):
-                x, context = simulator(batch_size = self.batch_size,np_random = self.np_random)
+                x, context = self.simulator(batch_size = self.batch_size,np_random = self.np_random)
                 x, context = x.to(self.device), context.to(self.device)
                 if len(context.shape)==3:
                     context = context.view(-1,self.x_dim*self.x_length)
-                generator.zero_grad()
-                critic.zero_grad()
-                x_hat = generator(context)
-                critic_x_hat = critic(x_hat, context).mean()
+                self.generator.zero_grad()
+                self.critic.zero_grad()
+                #set_trace()
+                x_hat = self.generator(context)
+                critic_x_hat = self.critic(x_hat, context).mean()
 
 
                 if n_critic < critic_steps:
-                    critic_x = critic(x, context).mean()
+                    critic_x = self.critic(x, context).mean()
                     WD = critic_x - critic_x_hat
                     loss = - WD
-                    loss += critic_gp_factor * critic.gradient_penalty(x, x_hat, context)
+                    loss += critic_gp_factor * self.critic.gradient_penalty(x, x_hat, context)
                     loss.backward()
                     opt_critic.step()
                     WD_train += WD.item()
@@ -160,32 +151,18 @@ class ABS():
                     opt_generator.step()
                     n_critic = 0 # now, the critic will again be trained.
 
-                step += 1
             WD_train /= n_iter
             self.loss_cum = WD_train
             
             # test loop
 
-            for iter_t in range(test_iter):
-                x, context = simulator(batch_size = self.batch_size)
-                x, context = x.to(self.device), context.to(self.device)
-                if len(context.shape)==3:
-                    context = context.view(-1,self.x_dim*self.x_length)
-                with torch.no_grad():
-                    x_hat = generator(context)
-                    critic_x_hat = critic(x_hat, context).mean()
-                    critic_x = critic(x, context).mean()
-                    WD_test += (critic_x - critic_x_hat).item()
-            WD_test /= test_iter
-            # diagnostics
-            if epoch % print_every == 0:
-                description = "epoch {} | step {} | WD_test {} | WD_train {} | sec passed {} (total {}) |".format(
-                epoch, step, round(WD_test, 2), round(WD_train, 2),round(time() - local_start_time),round(time() - start_time) )
-                print(description)
-                local_start_time = time()
+    def sampler(self, X, sample_size, shaper = None):
 
-    def sampler(self, X, sample_size):
-        X = torch.from_numpy(X).float().view(1, -1).repeat(sample_size, 1)
+        if shaper is None:
+            X = torch.from_numpy(X).float().view(1, -1).repeat(sample_size, 1)
+        else: 
+            X = shaper(X)
+        
         X = X.to(self.device)
         with torch.no_grad():
             return self.generator(X).to("cpu")
@@ -202,3 +179,4 @@ class ABS():
         saved = torch.load(path)
         self.generator.load_state_dict(saved['generator'])
         self.critic.load_state_dict(saved['critic'])
+

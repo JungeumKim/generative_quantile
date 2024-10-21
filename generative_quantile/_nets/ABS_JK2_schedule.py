@@ -162,8 +162,6 @@ class ABS():
 
                 step += 1
             WD_train /= n_iter
-            self.loss_cum = WD_train
-            
             # test loop
 
             for iter_t in range(test_iter):

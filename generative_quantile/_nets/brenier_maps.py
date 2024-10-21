@@ -234,10 +234,13 @@ class BayesQ():
             self.vis_every = 999999
         self.current_epoch = 0
 
-    def train(self):
-    
+    def train(self, start_epoch=1, end_epoch=None):
+        
+        if end_epoch is None:
+            end_epoch = self.epoch +1
+            
         self.log = []
-        for epoch in range(1, self.epoch +1):
+        for epoch in range(start_epoch, end_epoch):
 
             self.current_epoch = epoch
             print(f"Epoch {epoch}")
@@ -268,6 +271,7 @@ class BayesQ():
                     if hasattr(p, 'be_positive'):
                         p.data = p.data.clip(min=self.thresh)
                 '''
+            self.loss_cum = running_loss/self.n_iter
             if self.do_vis:    
                 loss_cum = running_loss/self.n_iter
                 sample = self.sampler(self.observed_data,300,shaper=lambda x: x)

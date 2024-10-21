@@ -1,4 +1,6 @@
 **/__pycache__/*
 **/.ipynb_checkpoints/*
 **/exp_controller/*
+**/replicator_exp/*
+**/developing_notebooks/*
 **/generative_quantile/worktrees

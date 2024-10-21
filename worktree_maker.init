@@ -1,7 +1,8 @@
 #!/bin/bash
 
 
-commit_ish=91e415e #92660f4 #72e093c 
+commit_ish=5d9f623 #5a3d7c1 #4e75b26 #1a6a034 #8e1b3f2 #3009fe1 #c271193 #3431267 #9877fa0 #91e415e #92660f4 #72e093c 
+
 #cd /home/kim2712/Desktop/research/encodingGAN/sourceCode
 #git version specifier: call and copy the code that it will run with.
 parent=/home/kim2712/Desktop/research/generative_quantile/generative_quantile/worktrees #/home/kim2712/Desktop/research/iglo/exp_controllers/worktrees
