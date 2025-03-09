@@ -88,6 +88,7 @@ class AutoNet(nn.Module):
 
         theta_samples=[]
         for i, net in enumerate(self.nets):
+            #set_trace()
             input = torch.cat([taus[:,i:i+1]]+theta_samples + [X], dim=1) 
             theta_samples.append(net(input))
 
@@ -206,6 +207,7 @@ class AutoReg():
         with torch.no_grad():
             if not self.ss_f:
                 X = X.view(-1,self.x_dim*self.x_length)
+            #set_trace()
             sample = self.net(X.to(self.device), taus)
             
         if train_mode: self.net.train()
